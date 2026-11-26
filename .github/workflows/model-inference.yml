@@ -15,10 +15,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install "paddlepaddle==3.0.0" "paddleocr==3.0.3" Pillow
+      - run: python -m pip install "paddlepaddle==3.0.0" "paddleocr==3.0.3" "paddlex[ocr]==3.0.3" Pillow
+      - run: python -m pip check
+      - run: python -m pip show paddlepaddle paddleocr paddlex
       - run: |
           set -o pipefail
-          python -m engine.evaluate_models ocr | tee ocr-report.txt
+          python -m engine.evaluate_models ocr 2>&1 | tee ocr-report.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
