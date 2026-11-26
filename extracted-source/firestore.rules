@@ -1,0 +1,256 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isBoundedStringList(data, key, maxSize) {
+      return !(key in data) || (data[key] is list && data[key].size() <= maxSize && (data[key].size() == 0 || data[key][0] is string));
+    }
+
+    function isValidBatch(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.status in ['QUEUED', 'RUNNING', 'PAUSED', 'COMPLETED', 'CANCELLED', 'FAILED'] &&
+             data.strategy in ['STANDARD', 'OFFICIAL_FIRST', 'DEEP_SOCIAL', 'FAST_BARCODE'] &&
+             data.targetImagesPerProduct is int && data.targetImagesPerProduct >= 1 && data.targetImagesPerProduct <= 20 &&
+             data.totalProducts is int && data.totalProducts >= 0 &&
+             data.processedProducts is int && data.processedProducts >= 0 &&
+             data.foundProductsCount is int && data.foundProductsCount >= 0 &&
+             data.reviewProductsCount is int && data.reviewProductsCount >= 0 &&
+             data.zeroResultCount is int && data.zeroResultCount >= 0 &&
+             data.discoveredImagesCount is int && data.discoveredImagesCount >= 0;
+    }
+
+    function isValidProduct(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.batchId is string && data.batchId.size() >= 1 && data.batchId.size() <= 128 &&
+             data.status in ['PENDING', 'IDENTIFYING', 'SEARCHING', 'VERIFYING', 'FOUND', 'REVIEW_REQUIRED', 'ZERO_RESULT', 'FAILED'] &&
+             data.zeroResultReason in ['NONE', 'NO_MATCHING_IMAGES', 'LOW_QUALITY_ONLY', 'RIGHTS_UNCLEAR', 'LINK_ONLY_SOURCES', 'UNCERTAIN_IDENTITY', 'SOURCE_UNREACHABLE', 'ENGINE_DOWN', 'INCOMPLETE_PROCESSING'] &&
+             data.approvalStatus in ['PENDING', 'APPROVED', 'REJECTED', 'SENT_TO_STUDIO'] &&
+             data.identityConfidence is number && data.identityConfidence >= 0.0 && data.identityConfidence <= 1.0 &&
+             data.discoveredCount is int && data.discoveredCount >= 0 &&
+             data.matchedCount is int && data.matchedCount >= 0 &&
+             isOptionalString(data, 'skuCode', 120) &&
+             isOptionalString(data, 'barcode', 64) &&
+             isOptionalString(data, 'brand', 120) &&
+             isOptionalString(data, 'productNameEn', 200) &&
+             isOptionalString(data, 'productNameAr', 200) &&
+             isOptionalString(data, 'manufacturer', 120) &&
+             isOptionalString(data, 'category', 80) &&
+             isOptionalString(data, 'variantEdition', 120) &&
+             isOptionalString(data, 'sizeWeight', 64) &&
+             isOptionalString(data, 'shadeColor', 80) &&
+             isOptionalString(data, 'packagingType', 80) &&
+             isOptionalString(data, 'extractedTextSummary', 1000) &&
+             isOptionalString(data, 'visualSignatureHash', 64) &&
+             isOptionalString(data, 'escalationLevelReached', 16) &&
+             isOptionalString(data, 'orchestratorNotes', 1000) &&
+             isOptionalString(data, 'bestImageUrl', 1000) &&
+             isBoundedStringList(data, 'localOriginalPaths', 10) &&
+             isBoundedStringList(data, 'searchQueries', 15);
+    }
+
+    function isValidCandidate(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.productId is string && data.productId.size() >= 1 && data.productId.size() <= 128 &&
+             data.imageUrl is string && data.imageUrl.size() >= 1 && data.imageUrl.size() <= 1500 &&
+             data.sourceName is string && data.sourceName.size() >= 1 && data.sourceName.size() <= 100 &&
+             data.sourceType in ['OFFICIAL_BRAND', 'OPEN_BEAUTY_DB', 'OPEN_MEDIA', 'SOCIAL_INDEX', 'SEARCH_ENGINE', 'CREATIVE_STUDIO'] &&
+             data.imageCategory in ['A_OFFICIAL', 'B_MARKETING', 'C_LIFESTYLE', 'D_WHITE_BG', 'E_PACKAGING', 'F_LOW_QUALITY', 'G_MISMATCH', 'H_REVIEW'] &&
+             data.rightsStatus in ['COMMERCIAL_PERMITTED', 'PERMISSION_REQUIRED', 'RIGHTS_UNKNOWN', 'RESTRICTED', 'LINK_ONLY'] &&
+             data.matchScore is number && data.matchScore >= 0.0 && data.matchScore <= 1.0 &&
+             data.brandMatchScore is number && data.brandMatchScore >= 0.0 && data.brandMatchScore <= 1.0 &&
+             data.skuMatchScore is number && data.skuMatchScore >= 0.0 && data.skuMatchScore <= 1.0 &&
+             data.aestheticScore is number && data.aestheticScore >= 0.0 && data.aestheticScore <= 1.0 &&
+             data.widthPx is int && data.widthPx >= 0 &&
+             data.heightPx is int && data.heightPx >= 0 &&
+             data.reviewDecision in ['PENDING', 'APPROVED', 'REJECTED'] &&
+             isOptionalString(data, 'pageUrl', 1500) &&
+             isOptionalString(data, 'publisherName', 150) &&
+             isOptionalString(data, 'licenseName', 120) &&
+             isOptionalString(data, 'perceptualHash', 64) &&
+             isOptionalString(data, 'verificationNotes', 600) &&
+             isOptionalString(data, 'rejectionReason', 300) &&
+             isOptionalString(data, 'localSavedPath', 500);
+    }
+
+    function isValidBrand(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.brandName is string && data.brandName.size() >= 1 && data.brandName.size() <= 120 &&
+             data.processedCount is int && data.processedCount >= 0 &&
+             data.successRate is number && data.successRate >= 0.0 && data.successRate <= 1.0 &&
+             isOptionalString(data, 'officialWebsite', 500) &&
+             isOptionalString(data, 'instagramHandle', 120) &&
+             isOptionalString(data, 'pinterestHandle', 120) &&
+             isBoundedStringList(data, 'trustedDomains', 20) &&
+             isBoundedStringList(data, 'successfulQueries', 20);
+    }
+
+    function isValidEngineConfig(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.engineKey is string && data.engineKey.size() >= 1 && data.engineKey.size() <= 64 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 40 &&
+             data.enabled is bool &&
+             data.priorityOrder is int && data.priorityOrder >= 0 && data.priorityOrder <= 100 &&
+             data.costTier is string && data.costTier.size() >= 1 && data.costTier.size() <= 40 &&
+             data.lastHealthStatus is string && data.lastHealthStatus.size() >= 1 && data.lastHealthStatus.size() <= 40 &&
+             data.lastLatencyMs is int && data.lastLatencyMs >= 0 &&
+             isOptionalString(data, 'endpointUrl', 500) &&
+             isOptionalString(data, 'lastTestSummary', 300);
+    }
+
+    function isValidAuditLog(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.level in ['INFO', 'WARN', 'ERROR'] &&
+             data.component is string && data.component.size() >= 1 && data.component.size() <= 80 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 800;
+    }
+
+    match /users/{userId} {
+
+      match /batches/{batchId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(batchId);
+        allow create: if isOwner(userId) && isValidId(batchId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'status', 'strategy', 'targetImagesPerProduct', 'totalProducts', 'processedProducts', 'foundProductsCount', 'reviewProductsCount', 'zeroResultCount', 'discoveredImagesCount', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'status', 'strategy', 'targetImagesPerProduct', 'totalProducts', 'processedProducts', 'foundProductsCount', 'reviewProductsCount', 'zeroResultCount', 'discoveredImagesCount', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidBatch(incoming());
+        allow update: if isOwner(userId) && isValidId(batchId) &&
+                         isValidBatch(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'status', 'strategy', 'targetImagesPerProduct', 'totalProducts', 'processedProducts', 'foundProductsCount', 'reviewProductsCount', 'zeroResultCount', 'discoveredImagesCount', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(batchId);
+      }
+
+      match /products/{productId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(productId);
+        allow create: if isOwner(userId) && isValidId(productId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'batchId', 'status', 'zeroResultReason', 'approvalStatus', 'identityConfidence', 'discoveredCount', 'matchedCount', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'batchId', 'skuCode', 'barcode', 'brand', 'productNameEn', 'productNameAr', 'manufacturer', 'category', 'variantEdition', 'sizeWeight', 'shadeColor', 'packagingType', 'extractedTextSummary', 'identityConfidence', 'visualSignatureHash', 'localOriginalPaths', 'searchQueries', 'status', 'zeroResultReason', 'escalationLevelReached', 'approvalStatus', 'orchestratorNotes', 'discoveredCount', 'matchedCount', 'bestImageUrl', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidProduct(incoming());
+        allow update: if isOwner(userId) && isValidId(productId) &&
+                         isValidProduct(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['batchId', 'skuCode', 'barcode', 'brand', 'productNameEn', 'productNameAr', 'manufacturer', 'category', 'variantEdition', 'sizeWeight', 'shadeColor', 'packagingType', 'extractedTextSummary', 'identityConfidence', 'visualSignatureHash', 'localOriginalPaths', 'searchQueries', 'status', 'zeroResultReason', 'escalationLevelReached', 'approvalStatus', 'orchestratorNotes', 'discoveredCount', 'matchedCount', 'bestImageUrl', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(productId);
+
+        match /candidates/{candidateId} {
+          allow list: if isOwner(userId);
+          allow get: if isOwner(userId) && isValidId(productId) && isValidId(candidateId);
+          allow create: if isOwner(userId) && isValidId(productId) && isValidId(candidateId) &&
+                           incoming().userId == userId &&
+                           incoming().productId == productId &&
+                           incoming().keys().hasAll(['userId', 'productId', 'imageUrl', 'sourceName', 'sourceType', 'imageCategory', 'rightsStatus', 'matchScore', 'brandMatchScore', 'skuMatchScore', 'aestheticScore', 'widthPx', 'heightPx', 'reviewDecision', 'createdAt', 'updatedAt']) &&
+                           incoming().keys().hasOnly(['userId', 'productId', 'imageUrl', 'pageUrl', 'sourceName', 'publisherName', 'sourceType', 'imageCategory', 'rightsStatus', 'licenseName', 'matchScore', 'brandMatchScore', 'skuMatchScore', 'aestheticScore', 'widthPx', 'heightPx', 'perceptualHash', 'verificationNotes', 'reviewDecision', 'rejectionReason', 'localSavedPath', 'createdAt', 'updatedAt']) &&
+                           isValidTimestamp(incoming().createdAt) &&
+                           isValidTimestamp(incoming().updatedAt) &&
+                           isValidCandidate(incoming());
+          allow update: if isOwner(userId) && isValidId(productId) && isValidId(candidateId) &&
+                           isValidCandidate(incoming()) &&
+                           incoming().userId == existing().userId &&
+                           incoming().productId == existing().productId &&
+                           incoming().createdAt == existing().createdAt &&
+                           isValidTimestamp(incoming().updatedAt) &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['imageCategory', 'rightsStatus', 'licenseName', 'matchScore', 'brandMatchScore', 'skuMatchScore', 'aestheticScore', 'widthPx', 'heightPx', 'perceptualHash', 'verificationNotes', 'reviewDecision', 'rejectionReason', 'localSavedPath', 'updatedAt']);
+          allow delete: if isOwner(userId) && isValidId(productId) && isValidId(candidateId);
+        }
+      }
+
+      match /brands/{brandId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(brandId);
+        allow create: if isOwner(userId) && isValidId(brandId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'brandName', 'processedCount', 'successRate', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'brandName', 'officialWebsite', 'instagramHandle', 'pinterestHandle', 'trustedDomains', 'successfulQueries', 'processedCount', 'successRate', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidBrand(incoming());
+        allow update: if isOwner(userId) && isValidId(brandId) &&
+                         isValidBrand(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['brandName', 'officialWebsite', 'instagramHandle', 'pinterestHandle', 'trustedDomains', 'successfulQueries', 'processedCount', 'successRate', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(brandId);
+      }
+
+      match /engines/{engineId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(engineId);
+        allow create: if isOwner(userId) && isValidId(engineId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'engineKey', 'displayName', 'category', 'enabled', 'priorityOrder', 'costTier', 'lastHealthStatus', 'lastLatencyMs', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'engineKey', 'displayName', 'category', 'enabled', 'priorityOrder', 'costTier', 'endpointUrl', 'lastHealthStatus', 'lastLatencyMs', 'lastTestSummary', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidEngineConfig(incoming());
+        allow update: if isOwner(userId) && isValidId(engineId) &&
+                         isValidEngineConfig(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().engineKey == existing().engineKey &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'category', 'enabled', 'priorityOrder', 'costTier', 'endpointUrl', 'lastHealthStatus', 'lastLatencyMs', 'lastTestSummary', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(engineId);
+      }
+
+      match /logs/{logId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(logId);
+        allow create: if isOwner(userId) && isValidId(logId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'level', 'component', 'message', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'level', 'component', 'message', 'createdAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidAuditLog(incoming());
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(logId);
+      }
+    }
+  }
+}
