@@ -1,4 +1,9 @@
 import json
+import io
+import os
+from PIL import Image
+from .visual_quality import signals, near_duplicate
+from .discovery import discover
 from pathlib import Path
 from .deep_extraction import extract
 from .safe_download import Downloader, inspect_image
@@ -13,7 +18,24 @@ def run(output):
     output.mkdir(parents=True, exist_ok=True)
     client = Downloader(['instagram.com','cdninstagram.com','cerave.com','purador.com','maybelline.com','cdn.shopify.com'])
     report = []
+    names = {'cerave':'CeraVe Hydrating Cleanser','purador':"Pura D'or Vitamin C Serum",'maybelline':'Maybelline Sky High Mascara'}
+    endpoint = os.environ.get('SEARXNG_ENDPOINT')
     for product, pages in PAGES.items():
+        pages = list(pages)
+        if endpoint:
+            for result in discover(names[product], endpoint):
+                report.append(dict(product=product, discovery=result))
+                for hit in result['hits']:
+                    try:
+                        from .safe_download import validate_url
+                        validate_url(hit['url'],client.allowed_hosts)
+                        if hit['url'] not in pages and len(pages)<6:
+                            pages.append(hit['url'])
+                    except ValueError:
+                        continue
+        else:
+            report.append(dict(product=product,status='DISCOVERY_NOT_CONFIGURED'))
+        visual_seen = []
         seen = set()
         for page in pages:
             try:
@@ -25,11 +47,15 @@ def run(output):
                     try:
                         data, mime, url = client.fetch(row['url'], 10000000, 'image/')
                         row.update(inspect_image(data,mime), final_url=url)
+                        with Image.open(io.BytesIO(data)) as im:
+                            row.update(signals(im))
+                        row['possible_visual_duplicates'] = [d for h,d in visual_seen if near_duplicate(h,row['dhash'])]
                         digest = row['sha256']
                         if digest in seen:
                             row['status'] = 'DUPLICATE'
                         else:
                             seen.add(digest)
+                            visual_seen.append((row['dhash'],digest))
                             filename = product + '-' + digest + '.bin'
                             (output / filename).write_bytes(data)
                             row['file'] = filename
