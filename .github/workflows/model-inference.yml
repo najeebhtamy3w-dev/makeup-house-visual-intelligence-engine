@@ -1,0 +1,52 @@
+name: MH-VIE model inference
+on:
+  push:
+    branches: [development]
+    paths: ['engine/evaluate_models.py', '.github/workflows/model-inference.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install "paddlepaddle==3.0.0" "paddleocr==3.0.3" Pillow
+      - run: |
+          set -o pipefail
+          python -m engine.evaluate_models ocr | tee ocr-report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ocr-report
+          path: ocr-report.txt
+  clip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install open_clip_torch==2.32.0 Pillow huggingface_hub
+      - name: Download public model checkpoint
+        run: |
+          python - <<'PY'
+          from huggingface_hub import hf_hub_download
+          import shutil
+          p=hf_hub_download('laion/CLIP-ViT-B-32-laion2B-s34B-b79K','open_clip_pytorch_model.bin')
+          shutil.copyfile(p,'clip-weights.bin')
+          PY
+      - run: |
+          set -o pipefail
+          python -m engine.evaluate_models clip --weights clip-weights.bin | tee clip-report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clip-report
+          path: clip-report.txt
