@@ -1,7 +1,7 @@
 """Integrated review pipeline; network and inference adapters are injectable."""
 import io
 from pathlib import Path
-from .multimodal import search_name
+from .identity_evidence import collect
 from PIL import Image
 from .discovery import discover
 from .deep_extraction import extract
@@ -10,18 +10,17 @@ from .visual_quality import signals, near_duplicate
 from .sku_verification import verify
 
 def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcode=None, ocr=None, encoder=None, classifier=None, max_pages=8, max_images=40, output_dir=None, identity_model=None):
-    hypothesis=None
-    if identity_model is not None and reference is not None:
-        try:
-            hypothesis=identity_model.identify(reference)
-            if not name.strip():
-                name=search_name(hypothesis['fields'])
-        except Exception as exc:
-            hypothesis={'status':'MODEL_FAILED','error':str(exc)}
+    evidence=collect(reference,fields,barcode,ocr,identity_model)
+    fields=evidence['fields']
+    if not name.strip():
+        name=evidence['query']
+    if evidence['status']=='IDENTITY_CONFLICT':
+        return {'product':name,'identity_evidence':evidence,'status':'IDENTITY_CONFLICT','images':[],'pages':[],'discovery':[],'commercial_approved':False}
     if not name.strip() or not 1<=max_pages<=30 or not 1<=max_images<=200:
         raise ValueError('INVALID_JOB')
     report={'product':name,'discovery':[],'pages':[],'images':[],'commercial_approved':False}
-    report['identity_hypothesis']=hypothesis
+    report['identity_hypothesis']=evidence['hypothesis']
+    report['identity_evidence']=evidence
     destination=Path(output_dir) if output_dir is not None else None
     if destination is not None:
         destination.mkdir(parents=True,exist_ok=True)
