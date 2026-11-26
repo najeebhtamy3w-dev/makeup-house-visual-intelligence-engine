@@ -1,5 +1,7 @@
 """Integrated review pipeline; network and inference adapters are injectable."""
 import io
+from pathlib import Path
+from .multimodal import search_name
 from PIL import Image
 from .discovery import discover
 from .deep_extraction import extract
@@ -7,10 +9,22 @@ from .safe_download import inspect_image, validate_url
 from .visual_quality import signals, near_duplicate
 from .sku_verification import verify
 
-def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcode=None, ocr=None, encoder=None, classifier=None, max_pages=8, max_images=40):
+def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcode=None, ocr=None, encoder=None, classifier=None, max_pages=8, max_images=40, output_dir=None, identity_model=None):
+    hypothesis=None
+    if identity_model is not None and reference is not None:
+        try:
+            hypothesis=identity_model.identify(reference)
+            if not name.strip():
+                name=search_name(hypothesis['fields'])
+        except Exception as exc:
+            hypothesis={'status':'MODEL_FAILED','error':str(exc)}
     if not name.strip() or not 1<=max_pages<=30 or not 1<=max_images<=200:
         raise ValueError('INVALID_JOB')
     report={'product':name,'discovery':[],'pages':[],'images':[],'commercial_approved':False}
+    report['identity_hypothesis']=hypothesis
+    destination=Path(output_dir) if output_dir is not None else None
+    if destination is not None:
+        destination.mkdir(parents=True,exist_ok=True)
     pages=list(dict.fromkeys(seeds))
     seen={}
     attempted=0
@@ -33,6 +47,11 @@ def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcod
                         data,mime,url=client.fetch(row['url'],10000000,'image/')
                         row.update(inspect_image(data,mime),final_url=url)
                         digest=row['sha256']
+                        if destination is not None:
+                            suffix={'PNG':'.png','JPEG':'.jpg','WEBP':'.webp','GIF':'.gif'}.get(row['format'],'.bin')
+                            filename=digest+suffix
+                            (destination/filename).write_bytes(data)
+                            row['file']=filename
                         if digest in seen:
                             row['status']='EXACT_DUPLICATE'
                         else:
