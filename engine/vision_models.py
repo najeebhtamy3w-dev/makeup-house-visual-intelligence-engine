@@ -27,6 +27,7 @@ class VisualEncoder:
         self.model,_,self.preprocess=open_clip.create_model_and_transforms(architecture,pretrained=str(weights),device=device)
         self.model.eval()
         self.device=device
+        self.architecture=architecture
 
     def encode(self,image):
         import torch
