@@ -5,8 +5,9 @@ from .vision_models import BarcodeReader, OCRReader, VisualEncoder
 
 def run(args):
     import zxingcpp
+    import numpy as np
     barcode = zxingcpp.create_barcode('4006381333931', zxingcpp.BarcodeFormat.EAN13)
-    image = Image.fromarray(zxingcpp.write_barcode_to_image(barcode, scale=4))
+    image = Image.fromarray(np.asarray(zxingcpp.write_barcode_to_image(barcode, size_hint=400)))
     rows = BarcodeReader().read(image)
     assert any(x['text']=='4006381333931' and x['valid_gtin'] for x in rows), rows
     report={'barcode':'PASS','ocr':'NOT_CONFIGURED','clip':'NOT_CONFIGURED'}
