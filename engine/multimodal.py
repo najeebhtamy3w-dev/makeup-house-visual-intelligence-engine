@@ -5,6 +5,9 @@ from pathlib import Path
 FIELDS=('brand','name','variant','size','concentration','shade')
 
 def parse_identity(raw):
+    raw=raw.strip()
+    if raw.startswith('```') and raw.endswith('```'):
+        raw=raw.split('\n',1)[1].rsplit('```',1)[0].strip()
     data=json.loads(raw)
     if not isinstance(data,dict):
         raise ValueError('INVALID_IDENTITY')
@@ -17,7 +20,7 @@ class QwenIdentity:
         if not Path(model_dir).is_dir():
             raise FileNotFoundError('LOCAL_MODEL_REQUIRED')
         self.processor=AutoProcessor.from_pretrained(model_dir,local_files_only=True,min_pixels=256*28*28,max_pixels=1024*28*28)
-        self.model=Qwen2_5_VLForConditionalGeneration.from_pretrained(model_dir,local_files_only=True,torch_dtype=torch.float32 if device=='cpu' else torch.float16).to(device).eval()
+        self.model=Qwen2_5_VLForConditionalGeneration.from_pretrained(model_dir,local_files_only=True,torch_dtype=torch.bfloat16 if device=='cpu' else torch.float16,low_cpu_mem_usage=True).to(device).eval()
         self.device=device
 
     def identify(self,image):
