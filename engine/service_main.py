@@ -23,9 +23,9 @@ def main():
         from .search_discovery import SearxDiscovery
         editor=segmenter=None
         if os.environ.get('MHVIE_EDIT_MODEL'):
-            from .creative_studio import LocalEditor
+            from .creative_studio import LocalEditor,LazyEditor
             from .product_lock import BackgroundSegmenter
-            editor=LocalEditor(os.environ['MHVIE_EDIT_MODEL'],os.environ['MHVIE_EDIT_BACKEND'])
+            editor=LazyEditor(lambda: LocalEditor(os.environ['MHVIE_EDIT_MODEL'],os.environ['MHVIE_EDIT_BACKEND']))
             segmenter=BackgroundSegmenter()
         evaluator=None
         if os.environ.get('MHVIE_CLIP_WEIGHTS'):
