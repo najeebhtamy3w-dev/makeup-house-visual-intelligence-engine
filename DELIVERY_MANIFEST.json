@@ -1,5 +1,5 @@
 {
-  "version": "0.25.1-rc1",
+  "version": "0.26.0-rc1",
   "status": "IMPLEMENTATION_CANDIDATE_NOT_ACCEPTED",
   "branch": "feature/v015-search-integration",
   "entrypoint": "python -m engine.service_main",
@@ -37,5 +37,11 @@
     "general_web",
     "optional_user_requested_direct_edit"
   ],
-  "segmentation_required_for_direct_edit": false
+  "segmentation_required_for_direct_edit": false,
+  "recovery": {
+    "original_workflows_restored": 5,
+    "live_acceptance": "PENDING",
+    "historical_artifact": "image-review",
+    "historical_artifact_recovered": false
+  }
 }
