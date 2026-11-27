@@ -17,5 +17,7 @@ def photo_discovery(path,identity,search,hosts,output,evaluator=None,purpose='ca
         return {'status':'IDENTITY_REVIEW_REQUIRED','identity':result,'barcodes':codes,'publication_allowed':False}
     if result.get('fusion',{}).get('size_conflict') or any(x.get('comparison',{}).get('status')=='CONFLICT' for x in result.get('sku_evidence',[])):
         return {'status':'IDENTITY_REVIEW_REQUIRED','identity':result,'barcodes':codes,'publication_allowed':False}
-    found=discover(query[:240],search,hosts,output,visual_evaluator=evaluator,purpose=purpose)
+    if evaluator is not None and hasattr(evaluator,'for_reference'):
+        evaluator=evaluator.for_reference(path)
+    found=discover(query[:240],search,hosts,output,visual_evaluator=evaluator,purpose=purpose,expected_fields=result.get('fields',{}))
     return {**found,'identity':result,'barcodes':codes,'query_verified':False,'publication_allowed':False}
