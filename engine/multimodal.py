@@ -4,6 +4,12 @@ from pathlib import Path
 
 FIELDS=('brand','name','variant','size','concentration','shade')
 
+def visual_budget(model_type, tokens):
+    if not 256 <= tokens <= 2048:
+        raise ValueError('INVALID_VISUAL_BUDGET')
+    factor = 32 if model_type == 'qwen3_vl' else 28
+    return {'shortest_edge': 256*factor**2, 'longest_edge': tokens*factor**2}
+
 def parse_identity(raw):
     raw=raw.strip()
     if raw.startswith('```') and raw.endswith('```'):
@@ -11,10 +17,10 @@ def parse_identity(raw):
     data=json.loads(raw)
     if not isinstance(data,dict):
         raise ValueError('INVALID_IDENTITY')
-    return {k:data[k].strip()[:200] for k in FIELDS if isinstance(data.get(k),str) and data[k].strip()}
+    return {k:data[k].strip()[:200] for k in FIELDS if isinstance(data.get(k),str) and data[k].strip().casefold() not in {'','null','none','unknown','n/a','undefined','not visible','غير معروف'}}
 
 class QwenIdentity:
-    def __init__(self,model_dir,device='cpu', max_visual_tokens=1024, max_new_tokens=256):
+    def __init__(self,model_dir,device='cpu', max_visual_tokens=384, max_new_tokens=256):
         import torch
         from transformers import AutoProcessor,AutoConfig
         import os
@@ -27,7 +33,9 @@ class QwenIdentity:
             from transformers import Qwen2_5_VLForConditionalGeneration as Model
         else:
             raise ValueError('VISION_MODEL_NOT_ALLOWED')
-        self.processor=AutoProcessor.from_pretrained(model_dir,local_files_only=True,min_pixels=256*28*28,max_pixels=max_visual_tokens*28*28)
+        budget=visual_budget(config.model_type,max_visual_tokens)
+        self.processor=AutoProcessor.from_pretrained(model_dir,local_files_only=True)
+        self.processor.image_processor.size=budget
         self.model=Model.from_pretrained(model_dir,local_files_only=True,torch_dtype=torch.bfloat16 if device=='cpu' else torch.float16,low_cpu_mem_usage=True).to(device).eval()
         self.device=device
         self.max_new_tokens=max_new_tokens
