@@ -1,0 +1,57 @@
+name: Product media verification probe
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  media:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify public page media metadata
+        run: |
+          python -u - <<'PY'
+          import subprocess,json
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin,urlsplit
+          class Meta(HTMLParser):
+              def __init__(self):
+                  super().__init__(); self.images=[]
+              def handle_starttag(self,tag,attrs):
+                  a=dict(attrs)
+                  if tag=='meta' and (a.get('property') or a.get('name')) in ('og:image','og:image:secure_url','twitter:image'):
+                      self.images.append(a.get('content',''))
+          urls=[
+            'https://www.instagram.com/p/Df9S5mqjDod/',
+            'https://www.instagram.com/reel/DJo2Pngy6u_/',
+            'https://www.instagram.com/p/Ded8vszCK6V/',
+            'https://www.cerave.com/skincare/cleansers/hydrating-facial-cleanser',
+            'https://purador.com/products/20vitamincserum',
+            'https://www.maybelline.com/eye-makeup/mascara/lash-sensational-sky-high-washable-mascara-makeup']
+          report=[]
+          blocked=set()
+          for url in urls:
+              host=urlsplit(url).hostname
+              row={'source':url}
+              if host in blocked:
+                  row['status']='SKIPPED_RATE_LIMIT'
+              else:
+                  try:
+                      r=subprocess.run(['curl','-sS','--connect-timeout','5','--max-time','15','--max-filesize','5000000','-o','page.html','-w','%{http_code}',url],capture_output=True,text=True,timeout=20)
+                      row.update(http=r.stdout,exit=r.returncode)
+                      if r.stdout=='429': blocked.add(host)
+                      if r.returncode==0 and r.stdout=='200':
+                          parser=Meta()
+                          with open('page.html',encoding='utf-8',errors='replace') as f: parser.feed(f.read())
+                          row['image_candidates']=list(dict.fromkeys(urljoin(url,x) for x in parser.images if x and urlsplit(urljoin(url,x)).scheme=='https'))
+                          row['status']='METADATA_FOUND' if row['image_candidates'] else 'NO_METADATA'
+                      else: row['status']='ACCESS_OR_TRANSFER_FAILURE'
+                  except Exception as e: row.update(status='ERROR',error=str(e))
+              report.append(row)
+              print(json.dumps(row),flush=True)
+              with open('media-report.json','w') as f: json.dump(report,f,indent=2)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: media-report
+          path: media-report.json
