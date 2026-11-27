@@ -1,0 +1,9 @@
+# Candidate dependencies only; resolve and lock separately on GPU after compatibility tests.
+-r requirements-service.txt
+torch
+diffusers
+transformers
+accelerate
+safetensors
+rembg[cpu]
+onnxruntime
