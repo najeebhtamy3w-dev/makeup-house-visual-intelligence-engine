@@ -14,8 +14,13 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from .barcode_priority import canonical_gtin
 
+class Stroke(BaseModel):
+    mode: Literal['erase','restore']
+    radius: int=Field(ge=1,le=256)
+    points: list[tuple[int,int]]=Field(min_length=1,max_length=256)
+
 class Job(BaseModel):
-    kind: Literal['discover','studio','identify','barcode','photo_discover','smart_discover','prepare_mask','locked_scene']
+    kind: Literal['discover','studio','identify','barcode','photo_discover','smart_discover','prepare_mask','locked_scene','correct_mask']
     formats: list[Literal['square','story','portrait']]=Field(default_factory=list,max_length=3)
     brand: Literal['makeup_house','unwan_al_atr']|None=None
     barcode: str|None=Field(default=None,max_length=14)
@@ -24,6 +29,7 @@ class Job(BaseModel):
     input: str|None=Field(default=None,max_length=70)
     mask_input: str|None=Field(default=None,max_length=70)
     mask_reviewed: bool=False
+    strokes: list[Stroke]=Field(default_factory=list,max_length=100)
     prompt: str|None=Field(default=None,max_length=1500)
 
 class Batch(BaseModel):
@@ -74,8 +80,9 @@ def create_app(runtime,root,token):
                 if not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|jpeg|webp)',job.input): raise HTTPException(422,'INVALID_INPUT_ID')
                 candidate=root/'inputs'/job.input
                 if candidate.is_symlink() or not candidate.is_file(): raise HTTPException(404,'INPUT_NOT_FOUND')
-            if job.kind=='locked_scene':
-                if not (job.input and job.mask_input and job.mask_reviewed and (job.prompt or '').strip()):
+            if job.kind=='correct_mask' and not (job.input and job.mask_input and job.strokes): raise HTTPException(422,'MASK_CORRECTION_INPUT_REQUIRED')
+            if job.kind in ('locked_scene','correct_mask'):
+                if job.kind=='locked_scene' and not (job.input and job.mask_input and job.mask_reviewed and (job.prompt or '').strip()):
                     raise HTTPException(422,'REVIEWED_MASK_AND_PROMPT_REQUIRED')
                 if not re.fullmatch(r'[a-f0-9]{64}\.png',job.mask_input): raise HTTPException(422,'INVALID_MASK_ID')
                 mask=root/'inputs'/job.mask_input
@@ -101,7 +108,7 @@ def create_app(runtime,root,token):
         return {'requeued':runtime.retry(batch_id)}
     @app.get('/v1/batches/{batch_id}/jobs/{job_id}/files/{name}',dependencies=[Depends(auth)])
     def artifact(batch_id:str,job_id:str,name:str):
-        if not re.fullmatch(r'(?:[a-f0-9]{64}\.bin|edited\.png|mask\.png|square\.png|story\.png|portrait\.png)',name):
+        if not re.fullmatch(r'(?:[a-f0-9]{64}\.bin|edited\.png|mask\.png|preview\.png|square\.png|story\.png|portrait\.png)',name):
             raise HTTPException(404,'FILE_NOT_FOUND')
         row=next((r for r in runtime.status(batch_id) if r['id']==job_id and r['state']=='COMPLETED'),None)
         if row is None: raise HTTPException(404,'JOB_NOT_FOUND')
