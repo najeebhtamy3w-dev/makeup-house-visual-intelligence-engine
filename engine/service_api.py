@@ -3,6 +3,8 @@ import hashlib
 import hmac
 import json
 import io
+import re
+from fastapi.responses import FileResponse
 from pathlib import Path
 from PIL import Image
 from fastapi import FastAPI, HTTPException, Header, Request, Depends
@@ -65,4 +67,17 @@ def create_app(runtime,root,token):
     def retry(batch_id:str):
         if not runtime.status(batch_id): raise HTTPException(404,'BATCH_NOT_FOUND')
         return {'requeued':runtime.retry(batch_id)}
+    @app.get('/v1/batches/{batch_id}/jobs/{job_id}/files/{name}',dependencies=[Depends(auth)])
+    def artifact(batch_id:str,job_id:str,name:str):
+        if not re.fullmatch(r'(?:[a-f0-9]{64}\.bin|edited\.png|mask\.png)',name):
+            raise HTTPException(404,'FILE_NOT_FOUND')
+        row=next((r for r in runtime.status(batch_id) if r['id']==job_id and r['state']=='COMPLETED'),None)
+        if row is None: raise HTTPException(404,'JOB_NOT_FOUND')
+        result=json.loads(row['result'])
+        base=(root/result['artifact_directory']).resolve()
+        expected=(root/'jobs'/job_id).resolve()
+        file=(base/name).resolve()
+        if base.parent!=expected or file.parent!=base or not file.is_file():
+            raise HTTPException(404,'FILE_NOT_FOUND')
+        return FileResponse(file,media_type='application/octet-stream',filename=name)
     return app
