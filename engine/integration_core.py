@@ -15,7 +15,7 @@ def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, d
     output=Path(output)
     output.mkdir(parents=True,exist_ok=True)
     dl=downloader or Downloader(allowed_hosts)
-    rows=[]; errors=[]; seen=set(); attempts=0
+    rows=[]; errors=[]; seen=set(); attempts=0; pages=[]
     for hit in list(search(query))[:max_pages]:
         page=hit['url']
         try:
@@ -29,7 +29,12 @@ def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, d
         except Exception as exc:
             errors.append({'source':page,'error':type(exc).__name__,'detail':str(exc)[:240]})
             continue
-        for candidate in candidates:
+        pages.append((final,candidates,comparisons,page_conflict))
+    # Round-robin extraction prevents one gallery consuming the entire budget.
+    for index in range(max((len(p[1]) for p in pages),default=0)):
+        for final,candidates,comparisons,page_conflict in pages:
+            if index>=len(candidates): continue
+            candidate=candidates[index]
             if attempts>=max_images: break
             attempts+=1
             try:
