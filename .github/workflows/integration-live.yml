@@ -57,7 +57,7 @@ jobs:
         run: |
           args=()
           if [ -f clip-path.txt ]; then
-            args+=(--clip-weights "$(cat clip-path.txt)" --aesthetic-weights upstream-aesthetic/sa_0_4_vit_l_14_linear.pth --aesthetic-sha256 "$(sha256sum upstream-aesthetic/sa_0_4_vit_l_14_linear.pth | cut -d' ' -f1)")
+            args+=(--require-instagram --clip-weights "$(cat clip-path.txt)" --aesthetic-weights upstream-aesthetic/sa_0_4_vit_l_14_linear.pth --aesthetic-sha256 "$(sha256sum upstream-aesthetic/sa_0_4_vit_l_14_linear.pth | cut -d' ' -f1)")
           fi
           timeout 900 python -u -m engine.integration_live --endpoint http://127.0.0.1:8080 --host instagram.com --host cdninstagram.com --host fbcdn.net --host cerave.com --host purador.com --host maybelline.com --host cdn.shopify.com "${args[@]}"
       - uses: actions/upload-artifact@v4
