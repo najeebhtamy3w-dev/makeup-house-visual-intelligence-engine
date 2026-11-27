@@ -19,3 +19,10 @@ Dependency acceptance: resolve each runtime profile on its target platform, run 
 - FLUX.2 klein 4B: Apache-2.0 license at https://huggingface.co/black-forest-labs/FLUX.2-klein-4B/blob/e7b7dc27f91d/LICENSE.md . Eligible subject to exact snapshot and notices review. Do not substitute other variants without review.
 - BiRefNet upstream model card declares MIT https://huggingface.co/ZhengPeng7/BiRefNet ; exact rembg ONNX asset provenance pending.
 - Other weights and dependency audit remain pending. No production release authorized.
+
+
+## Verified V4 correction — 2026-11-28
+
+The exact pinned Qwen2.5-VL-3B license is the Qwen Research License, restricted to research/evaluation; commercial use requires a separately requested license. Primary pinned text: https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct/blob/1b989f2c63999d7344135894d3cfa8f494116743/LICENSE . No permission was obtained or assumed, and no model was silently replaced.
+
+Qwen-Image-Edit-2511 and FLUX.2-klein-4B upstream cards declare Apache-2.0. Installed snapshots, all component notices and exact weight hashes remain pending; no weights are redistributed in this delivery. Code licenses, model weights, training-data provenance and image publication rights remain separate. Current integration workflow selects ViT-L-14/openai weights through OpenCLIP; this must not be mislabeled LAION-2B.

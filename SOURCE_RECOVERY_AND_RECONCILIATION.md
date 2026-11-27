@@ -35,3 +35,7 @@ The current `calibration_labels.json` was recovered separately; baseline measure
 ## Integration policy
 
 Changes are integrated on the existing feature branch in bounded tested commits. No blind merge, force push, hard reset, archive downgrade or engine replacement is used. Main merge and V1.0 remain conditional on component quality, live workflows and device evidence; successful fixture tests alone do not satisfy those gates.
+
+## Subsequent continuation recovery
+
+The execution workspace was recreated again on continuation. Source commit ff3f5d433a582fbcb2c39ad36733188732d28c1e, Android CI artifact 15234185112 and the privately retained engineering key were recovered. The actual APK was re-signed with the same engineering certificate and durably retained. The native-decoder test fix and a supported Lint UAST compatibility setting are being verified in fresh CI; no detector or assertion is disabled. The grouped GPU runner was restored as a bounded extension with three lifecycle/hash regressions. The current saved-source gate is 156 passing tests, distinct from the earlier transient 159-test state. No transient output is represented as a saved final deliverable.

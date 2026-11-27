@@ -17,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.util.Date
 import java.util.zip.ZipEntry
@@ -24,18 +25,24 @@ import java.util.zip.ZipOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class MhvieRobolectricTest {
     private lateinit var context: Context
     @Before fun prepare() { context = ApplicationProvider.getApplicationContext(); context.deleteDatabase("mhvie_workspace.sqlite"); context.getSharedPreferences("mhvie_backend", 0).edit().clear().commit() }
     @After fun clean() { context.deleteDatabase("mhvie_workspace.sqlite") }
     private fun png(): ByteArray {
-        val bitmap = Bitmap.createBitmap(32, 20, Bitmap.Config.ARGB_8888)
-        return java.io.ByteArrayOutputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out); bitmap.recycle(); out.toByteArray() }
+        val image = java.awt.image.BufferedImage(32, 20, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        return java.io.ByteArrayOutputStream().use { output ->
+            check(javax.imageio.ImageIO.write(image, "png", output)); output.toByteArray()
+        }
     }
     @Test fun originalImageBytesAndFormatArePreserved() {
         val source = File(context.cacheDir, "source.png").apply { writeBytes(png()) }
         val result = SecurityAndImageUtils.copyUriToInternalImageFile(context, Uri.fromFile(source), "test-original")
         assertNotNull(result); assertTrue(result!!.endsWith(".png")); assertArrayEquals(source.readBytes(), File(result).readBytes())
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(result, bounds)
+        assertEquals(32, bounds.outWidth); assertEquals(20, bounds.outHeight)
     }
     @Test fun invalidImageDoesNotBecomeProductPhoto() {
         val source = File(context.cacheDir, "fake.jpg").apply { writeText("not an image") }

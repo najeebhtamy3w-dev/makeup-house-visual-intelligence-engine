@@ -4,13 +4,44 @@
   "branch": "feature/v015-search-integration",
   "recovery_base": "d5e7360421c61e6a57aece68dc72342792c91423",
   "recovery_branch": "recovery/v027-before-v4-integration",
-  "status": "IMPLEMENTATION_IN_PROGRESS",
-  "last_fresh_engine_tests": {"run": 133, "failures": 0, "errors": 0},
-  "last_apk": null,
+  "status": "APK_PRESERVED_FINAL_CI_IN_PROGRESS",
+  "last_fresh_engine_tests": {
+    "run": 156,
+    "failures": 0,
+    "errors": 0
+  },
+  "last_apk": "MHVIE_0.26.0_DEV1_ENGINEERING_DEBUG.apk",
   "quality_accepted": false,
   "device_verified": false,
-  "blockers": ["No GPU available in this execution environment", "No independently representative classification validation set", "Samsung field acceptance not performed"],
-  "active_work": ["Restore original Compose Android application and build", "Harden existing backend and job recovery", "Calibration integrity and leakage-safe splits", "Candidate-level SKU evidence and GTIN validation", "Direct edit QA and correct T4 preflight"],
-  "historical_live_artifact": {"run_id": 46066676176, "artifact_id": 15230604727, "images_hash_verified": 57},
-  "next": ["Run integrated regression after all edits", "Build and inspect actual debug APK", "Persist source/checkpoints remotely", "Deliver actual artifacts with limitations"]
+  "blockers": [
+    "No GPU available in this execution environment",
+    "No independently representative classification validation set",
+    "Samsung field acceptance not performed"
+  ],
+  "active_work": [
+    "Restore original Compose Android application and build",
+    "Harden existing backend and job recovery",
+    "Calibration integrity and leakage-safe splits",
+    "Candidate-level SKU evidence and GTIN validation",
+    "Direct edit QA and correct T4 preflight"
+  ],
+  "historical_live_artifact": {
+    "run_id": 46066676176,
+    "artifact_id": 15230604727,
+    "images_hash_verified": 57
+  },
+  "next": [
+    "Run integrated regression after all edits",
+    "Build and inspect actual debug APK",
+    "Persist source/checkpoints remotely",
+    "Deliver actual artifacts with limitations"
+  ],
+  "last_remote_checkpoint": "ff3f5d433a582fbcb2c39ad36733188732d28c1e",
+  "commit_reference": "Git HEAD containing this file",
+  "android_gate": "PENDING_FRESH_CI",
+  "gpu_preflight": {
+    "results": 20,
+    "blocked": 20,
+    "real_inference": 0
+  }
 }
