@@ -11,4 +11,10 @@ def rank_candidates(rows):
         brightness=max(0,1-abs(row.get('brightness',128)-128)/128)
         score=round(0.85*resolution+0.15*brightness,4)
         eligible.append({'sha256':row.get('sha256'),'file':row.get('file'),'url':row.get('url'),'technical_score':score,'aesthetic_status':'NOT_EVALUATED','commercial_approved':False})
-    return sorted(eligible,key=lambda x:-x['technical_score'])
+        aesthetic=row.get('aesthetic',{})
+        item=eligible[-1]
+        item['aesthetic_status']=aesthetic.get('status','NOT_EVALUATED')
+        item['aesthetic_score']=aesthetic.get('score') if item['aesthetic_status']=='EVALUATED' else None
+        item['combined_score']=round(.5*score+.5*item['aesthetic_score'],4) if item['aesthetic_score'] is not None else score
+    # Do not compare calibrated and fallback scores as if equivalent.
+    return sorted(eligible,key=lambda x:(x['aesthetic_score'] is None,-x['combined_score']))
