@@ -23,7 +23,7 @@ def main():
     try:
         start=time.monotonic()
         segmenter=BackgroundSegmenter()
-        prepare_mask(a.source,segmenter,root/'mask.png')
+        report['mask']=prepare_mask(a.source,root/'mask.png',segmenter)
         report['segmentation_seconds']=time.monotonic()-start
         torch.cuda.reset_peak_memory_stats()
         start=time.monotonic()
@@ -35,6 +35,8 @@ def main():
         report['edit_seconds']=time.monotonic()-start
         report['peak_cuda_bytes']=torch.cuda.max_memory_reserved()
         report['pixel_verification']=verify_pixels(a.source,root/'result.png',root/'mask.png')
+        if not report['pixel_verification']['protected_pixels_preserved']:
+            raise RuntimeError('PROTECTED_PIXELS_CHANGED')
         report['inference_verified']=True
         report['visual_acceptance']='HUMAN_REVIEW_REQUIRED'
         report['model_index_sha256']=hashlib.sha256((Path(a.model_dir)/'model_index.json').read_bytes()).hexdigest()
