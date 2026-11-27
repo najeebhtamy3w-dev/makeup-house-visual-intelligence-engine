@@ -4,6 +4,7 @@ from .multimodal import search_name
 
 def resolve_input(barcode, query, path, lookup, visual, named, barcode_reader=None):
     trace=[]
+    if barcode and canonical_gtin(barcode) is None: raise ValueError('INVALID_GTIN')
     if barcode and path is not None and barcode_reader is not None:
         from .barcode_priority import valid_gtins
         observed=valid_gtins(barcode_reader(path))
@@ -24,7 +25,7 @@ def resolve_input(barcode, query, path, lookup, visual, named, barcode_reader=No
                 fields=next(iter(unique.values()))
                 # A supplied photo or name may contradict the barcode. Require review.
                 result=named(search_name(fields))
-                if path is not None and 'candidates' in result and not any(c.get('selection_status')!='REJECTED' and c.get('status')!='REJECTED' for c in result['candidates']):
+                if path is not None and 'candidates' in result and not any(c.get('selection',{}).get('status')!='REJECTED' and c.get('status')!='REJECTED' for c in result['candidates']):
                     trace.append('BARCODE_NO_USABLE_IMAGES')
                     fallback=visual(path)
                     return {**fallback,'route':'PHOTO_FALLBACK','route_trace':trace,'barcode_evidence':evidence,'input_consistency':'REVIEW_REQUIRED','identity_verified':False,'publication_allowed':False}
