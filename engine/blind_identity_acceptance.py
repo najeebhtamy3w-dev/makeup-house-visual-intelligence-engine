@@ -8,16 +8,24 @@ def main():
     p.add_argument('--manifest',required=True)
     p.add_argument('--model',required=True)
     p.add_argument('--output',required=True)
+    p.add_argument('--index',type=int)
+    p.add_argument('--visual-tokens',type=int,default=384)
+    p.add_argument('--new-tokens',type=int,default=128)
     a=p.parse_args()
     manifest=Path(a.manifest).resolve()
     rows=json.loads(manifest.read_text())
     if not isinstance(rows,list) or not 1<=len(rows)<=100:
         raise ValueError('INVALID_MANIFEST')
-    model=QwenIdentity(a.model)
+    if a.index is not None and not 1<=a.index<=len(rows): raise ValueError('INVALID_INDEX')
+    print('Loading model',flush=True)
+    model=QwenIdentity(a.model,max_visual_tokens=a.visual_tokens,max_new_tokens=a.new_tokens)
+    print('Model loaded',flush=True)
     output=Path(a.output)
     output.parent.mkdir(parents=True,exist_ok=True)
     results=[]
     for i,row in enumerate(rows,1):
+        if a.index is not None and i!=a.index: continue
+        print(f'Image {i}: start',flush=True)
         start=time.monotonic()
         try:
             if row.get('name') or row.get('fields') or row.get('seeds'):
@@ -32,6 +40,7 @@ def main():
         except Exception as exc:
             result={'status':'FAILED','error':str(exc)}
         results.append(dict(index=i,elapsed_seconds=time.monotonic()-start,**result))
+        print(f'Image {i}: {result.get("status")} elapsed={time.monotonic()-start:.1f}s',flush=True)
         output.write_text(json.dumps({'human_validation':'PENDING','results':results},ensure_ascii=False,indent=2),encoding='utf-8')
     if any(x['status']=='FAILED' or not x.get('fields') for x in results):
         raise SystemExit('IDENTITY_GATE_FAILED')
