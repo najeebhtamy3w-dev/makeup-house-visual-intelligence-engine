@@ -51,7 +51,7 @@ class JobHandler:
                 return photo_discovery(path,self.identity_service,self.search,self.hosts,output,self.visual_evaluator,payload.get('purpose','catalog'))
             def named(query):
                 return discover(query[:240],self.search,self.hosts,output,visual_evaluator=self.visual_evaluator,purpose=payload.get('purpose','catalog'))
-            result=resolve_input(payload.get('barcode'),payload.get('query'),path,lookup,visual,named)
+            result=resolve_input(payload.get('barcode'),payload.get('query'),path,lookup,visual,named,barcode_reader=read_barcodes)
         elif kind=='photo_discover':
             if self.identity_service is None: raise RuntimeError('IDENTITY_UNAVAILABLE')
             result=photo_discovery(self.input(payload['input']),self.identity_service,self.search,self.hosts,output,self.visual_evaluator,payload.get('purpose','catalog'))
