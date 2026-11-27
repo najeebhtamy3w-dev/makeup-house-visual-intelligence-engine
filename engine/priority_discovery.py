@@ -11,7 +11,7 @@ def suitable_for_review(c):
     return (s.get("status")=="REVIEW_REQUIRED" and not c.get("page_sku_conflict")
         and not c.get("possible_duplicate_of") and min(c.get("width",0),c.get("height",0))>=600
         and s.get("components",{}).get("purpose_fit")==1.0
-        and v.get("identity_status")=="CORROBORATED_REVIEW_REQUIRED"
+        and (v.get("identity_status")=="CORROBORATED_REVIEW_REQUIRED" or any(e.get("status")=="CORROBORATED_REVIEW_REQUIRED" for e in c.get("page_sku_evidence",[])))
         and (v.get("similarity_cosine") or 0)>=0.85)
 
 def priority_discover(query,search,hosts,output,**kwargs):
@@ -24,10 +24,11 @@ def priority_discover(query,search,hosts,output,**kwargs):
         try:
             q=query[:215]+" site:instagram.com" if name=="instagram" else query
             hits=list(search(q))
+            diagnostics=getattr(search,"last_diagnostics",{})
             hits=[h for h in hits if instagram_post(h)] if name=="instagram" else [h for h in hits if not instagram_post(h)]
             # Keep artifacts in the existing flat job directory for API retrieval.
             result=discover(query,lambda _:hits,hosts,output,**kwargs)
-            stages.append({"stage":name,"status":result["status"],"errors":result["errors"],"count":len(result["candidates"])})
+            stages.append({"stage":name,"status":result["status"],"errors":result["errors"],"count":len(result["candidates"]),"search_diagnostics":diagnostics,"filtered_hits":len(hits)})
             candidates.extend(result["candidates"])
         except Exception as exc:
             stages.append({"stage":name,"status":"FAILED","error":type(exc).__name__,"detail":str(exc)[:240]})
