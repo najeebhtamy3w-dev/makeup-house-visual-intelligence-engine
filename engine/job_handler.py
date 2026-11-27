@@ -2,6 +2,8 @@
 from pathlib import Path
 import re
 from .integration_core import discover
+from .photo_workflow import photo_discovery,read_barcodes
+from .campaign_formats import render_formats
 from .creative_studio import protected_edit
 from .brand_profiles import campaign_prompt
 from .review_export import export_review
@@ -30,6 +32,11 @@ class JobHandler:
         kind=payload.get('kind')
         if kind=='discover':
             result=discover(payload['query'],self.search,self.hosts,output,visual_evaluator=self.visual_evaluator,purpose=payload.get('purpose','catalog'))
+        elif kind=='barcode':
+            result={'barcodes':read_barcodes(self.input(payload['input'])),'identity_verified':False}
+        elif kind=='photo_discover':
+            if self.identity_service is None: raise RuntimeError('IDENTITY_UNAVAILABLE')
+            result=photo_discovery(self.input(payload['input']),self.identity_service,self.search,self.hosts,output,self.visual_evaluator,payload.get('purpose','catalog'))
         elif kind=='identify':
             if self.identity_service is None: raise RuntimeError('IDENTITY_UNAVAILABLE')
             result=self.identity_service(self.input(payload['input']))
@@ -43,11 +50,12 @@ class JobHandler:
             result['mask']=mask_report
             result['verification']=verify_pixels(source,output/'edited.png',mask)
             if not result['verification']['protected_pixels_preserved']: raise RuntimeError('IDENTITY_LOCK_FAILED')
+            result['formats']=render_formats(output/'edited.png',output,payload.get('formats') or [])
         else: raise ValueError('UNKNOWN_JOB_KIND')
         result['artifact_directory']=str(output.relative_to(self.root))
         result['publication_allowed']=False
         result['brand']=payload.get('brand')
-        if kind in ('studio','discover'):
+        if kind in ('studio','discover','photo_discover'):
             archive=output.parent/(output.name+'.zip')
             export_review(output,archive,result)
             result['review_archive']=archive.name
