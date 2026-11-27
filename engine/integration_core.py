@@ -3,8 +3,9 @@ from pathlib import Path
 from .deep_extraction import extract
 from .safe_download import Downloader, inspect_image
 from .candidate_quality import assess, distance
+from .image_selection import rank_candidates
 
-def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, downloader=None):
+def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, downloader=None, visual_evaluator=None, purpose='catalog'):
     if not isinstance(query,str) or not query.strip() or len(query)>240:
         raise ValueError('INVALID_QUERY')
     if not 1<=max_pages<=10 or not 1<=max_images<=50:
@@ -38,5 +39,11 @@ def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, d
             except Exception as exc:
                 errors.append({'source':candidate['url'],'error':type(exc).__name__})
         if attempts>=max_images: break
-    rows.sort(key=lambda r:(r['quality']['resolution_ok'],r['width']*r['height']),reverse=True)
+    if visual_evaluator is not None:
+        for row in rows:
+            try:
+                row['visual_evidence']=visual_evaluator(output/row['file'],query)
+            except Exception as exc:
+                errors.append({'source':row['url'],'error':type(exc).__name__,'stage':'VISUAL_EVALUATION'})
+    rows=rank_candidates(rows,purpose)
     return {'schema_version':'1.0','status':'REVIEW_REQUIRED' if rows else 'NO_CANDIDATES','query':query,'candidates':rows,'errors':errors,'attempts':attempts,'publication_allowed':False}
