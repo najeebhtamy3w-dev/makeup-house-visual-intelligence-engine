@@ -18,6 +18,8 @@ def priority_discover(query,search,hosts,output,**kwargs):
     from pathlib import Path
     output=Path(output)
     stages=[]; candidates=[]
+    from .safe_download import Downloader
+    kwargs.setdefault('downloader',Downloader(hosts))
     for name in ("instagram","web"):
         try:
             q=query[:215]+" site:instagram.com" if name=="instagram" else query
@@ -28,7 +30,7 @@ def priority_discover(query,search,hosts,output,**kwargs):
             stages.append({"stage":name,"status":result["status"],"errors":result["errors"],"count":len(result["candidates"])})
             candidates.extend(result["candidates"])
         except Exception as exc:
-            stages.append({"stage":name,"status":"FAILED","error":type(exc).__name__})
+            stages.append({"stage":name,"status":"FAILED","error":type(exc).__name__,"detail":str(exc)[:240]})
         # Only stop on strong SKU evidence, never on raw search hits.
         if any(suitable_for_review(c) for c in candidates): break
     unique={c["sha256"]:c for c in reversed(candidates)}
