@@ -8,7 +8,7 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 class SearxDiscovery:
-    def __init__(self, endpoint, timeout=12):
+    def __init__(self, endpoint, timeout=45):
         u=urlsplit(endpoint)
         if u.scheme not in ('http','https') or not u.hostname or u.username or u.password or u.query or u.fragment:
             raise ValueError('INVALID_SEARCH_ENDPOINT')
@@ -24,7 +24,9 @@ class SearxDiscovery:
             raw=response.read(1000001)
         if len(raw)>1000000:
             raise ValueError('SEARCH_RESPONSE_LIMIT')
-        return parse_results(json.loads(raw))
+        data=json.loads(raw)
+        self.last_diagnostics={'engine_errors':data.get('unresponsive_engines',[]),'raw_count':len(data.get('results',[]))}
+        return parse_results(data)
 
 def parse_results(data):
     results=[]
@@ -36,6 +38,6 @@ def parse_results(data):
         u=urlsplit(url)
         if u.scheme not in ('http','https') or not u.hostname or u.username or u.password or url in seen: continue
         seen.add(url)
-        results.append({'url':url,'title':str(row.get('title',''))[:300],'snippet':str(row.get('content',''))[:500],'verified':False})
-        if len(results)>=10: break
+        results.append({'url':url,'title':str(row.get('title',''))[:300],'snippet':str(row.get('content',''))[:500],'engine':row.get('engine'),'verified':False})
+        if len(results)>=20: break
     return results
