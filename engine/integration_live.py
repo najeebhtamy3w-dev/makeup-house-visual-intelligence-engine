@@ -11,7 +11,17 @@ def main():
     p.add_argument('--endpoint',required=True)
     p.add_argument('--host',action='append',required=True)
     p.add_argument('--output',default='results-integration')
+    p.add_argument('--clip-weights')
+    p.add_argument('--aesthetic-weights')
+    p.add_argument('--aesthetic-sha256')
     a=p.parse_args()
+    evaluator=None
+    if a.clip_weights:
+        from .visual_evaluator import LocalClip,VisualEvaluator
+        from .aesthetic import AestheticPredictor
+        encoder=LocalClip(a.clip_weights)
+        head=AestheticPredictor(encoder,a.aesthetic_weights,a.aesthetic_sha256) if a.aesthetic_weights else None
+        evaluator=VisualEvaluator(encoder,head)
     root=Path(a.output)
     root.mkdir(parents=True,exist_ok=True)
     search=SearxDiscovery(a.endpoint)
@@ -20,9 +30,11 @@ def main():
     for i,q in enumerate(queries):
         start=time.monotonic()
         try:
-            result=discover(q,search,a.host,root/str(i),max_pages=5,max_images=20)
+            result=discover(q,search,a.host,root/str(i),max_pages=5,max_images=20,visual_evaluator=evaluator)
         except Exception as exc:
             result={'query':q,'status':'FAILED','error':type(exc).__name__,'candidates':[]}
+        result['visual_evaluated_count']=sum(c.get('visual_evidence',{}).get('classification_cosine') is not None for c in result['candidates'])
+        result['aesthetic_evaluated_count']=sum(c.get('visual_evidence',{}).get('aesthetic_normalized') is not None for c in result['candidates'])
         result['elapsed_seconds']=time.monotonic()-start
         reports.append(result)
         (root/'report.json').write_text(json.dumps(reports,indent=2),encoding='utf-8')
@@ -30,6 +42,10 @@ def main():
     (root/'report.json').write_text(json.dumps(reports,indent=2),encoding='utf-8')
     if not all(r['candidates'] and not r.get('publication_allowed',False) for r in reports):
         raise SystemExit('LIVE_DISCOVERY_GATE_FAILED')
+    if evaluator is not None and not all(r['visual_evaluated_count']==len(r['candidates']) for r in reports):
+        raise SystemExit('LIVE_VISUAL_GATE_FAILED')
+    if a.aesthetic_weights and not all(r['aesthetic_evaluated_count']==len(r['candidates']) for r in reports):
+        raise SystemExit('LIVE_AESTHETIC_GATE_FAILED')
 
 if __name__=='__main__':
     main()
