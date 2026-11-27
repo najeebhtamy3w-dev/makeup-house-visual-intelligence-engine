@@ -10,7 +10,7 @@ from .visual_quality import signals, near_duplicate
 from .sku_verification import verify
 from .ranking import rank_candidates
 
-def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcode=None, ocr=None, encoder=None, classifier=None, max_pages=8, max_images=40, output_dir=None, identity_model=None):
+def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcode=None, ocr=None, encoder=None, classifier=None, max_pages=8, max_images=40, output_dir=None, identity_model=None, aesthetic=None):
     evidence=collect(reference,fields,barcode,ocr,identity_model)
     fields=evidence['fields']
     if not name.strip():
@@ -60,6 +60,11 @@ def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcod
                                 row['possible_duplicates']=[d for d,h in seen.items() if near_duplicate(h,row['dhash'])]
                                 seen[digest]=row['dhash']
                                 row['verification']=verify(reference,im,fields,{},barcode,ocr,encoder)
+                                if aesthetic is not None:
+                                    try:
+                                        row['aesthetic']=aesthetic.evaluate(im)
+                                    except Exception as exc:
+                                        row['aesthetic']={'status':'FAILED','error':str(exc)}
                                 if classifier:
                                     row['classification']=classifier.classify(im)
                             row['status']='SKU_CONFLICT' if row['verification']['status']=='SKU_CONFLICT' else 'NEEDS_MANUAL_REVIEW'
