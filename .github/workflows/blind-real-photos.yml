@@ -1,7 +1,7 @@
 name: MH-VIE blind real photos
 on:
   push:
-    branches: [development]
+    branches: [development, 'feature/v015-search-integration']
     paths: ['acceptance/blind10/**', '.github/workflows/blind-real-photos.yml']
   workflow_dispatch:
 permissions:
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: v0142-adaptive-evidence-${{ matrix.index }}-v${{ matrix.visual }}-t${{ matrix.tokens }}
+          name: v0253-identity-evidence-${{ matrix.index }}-v${{ matrix.visual }}-t${{ matrix.tokens }}
           path: |
             blind-report.json
             blind-log.txt
