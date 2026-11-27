@@ -1,0 +1,61 @@
+name: SearXNG Instagram discovery probe
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Start temporary search service
+        run: |
+          mkdir -p config
+          cat > config/settings.yml <<'YAML'
+          use_default_settings: true
+          server:
+            secret_key: "temporary-ci-only-not-for-production"
+            limiter: false
+          search:
+            formats:
+              - html
+              - json
+          YAML
+          docker run -d --name searxng -p 127.0.0.1:8080:8080 -v "$PWD/config:/etc/searxng" searxng/searxng:latest
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/healthz; then exit 0; fi
+            sleep 2
+          done
+          docker logs searxng
+          exit 1
+      - name: Search public indexed product pages
+        run: |
+          python - <<'PY'
+          import urllib.request, urllib.parse, json, time
+          from urllib.parse import urlsplit
+          report=[]
+          for product in ['CeraVe Hydrating Cleanser',"Pura D'or Vitamin C Serum",'Maybelline Sky High Mascara']:
+              for scope in ['instagram','web']:
+                  query=('site:instagram.com ' if scope=='instagram' else '')+product
+                  try:
+                      url='http://127.0.0.1:8080/search?'+urllib.parse.urlencode(dict(q=query,format='json',categories='general'))
+                      with urllib.request.urlopen(url,timeout=45) as r: data=json.load(r)
+                      hits=[]
+                      for x in data.get('results',[]):
+                          link=x.get('url','')
+                          host=(urlsplit(link).hostname or '').lower()
+                          if scope=='instagram' and not (host=='instagram.com' or host.endswith('.instagram.com')): continue
+                          hits.append(dict(title=x.get('title'),url=link,engine=x.get('engine')))
+                      report.append(dict(product=product,scope=scope,status='RESULTS' if hits else 'NO_HITS_OR_ENGINE_FAILURE',count=len(hits),engine_errors=data.get('unresponsive_engines',[]),hits=hits[:10]))
+                  except Exception as e:
+                      report.append(dict(product=product,scope=scope,status='ERROR',error=str(e)))
+                  time.sleep(3)
+          print(json.dumps(report,ensure_ascii=False,indent=2))
+          with open('searxng-report.json','w') as f: json.dump(report,f,ensure_ascii=False,indent=2)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: searxng-report
+          path: searxng-report.json
+      - name: Service logs
+        if: always()
+        run: docker logs --tail 80 searxng || true
