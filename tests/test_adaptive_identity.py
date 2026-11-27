@@ -23,3 +23,8 @@ class AdaptiveTests(unittest.TestCase):
         result=identify_adaptive([{'text':x,'score':.99} for x in ['Anua','Serum','30 ml']],lambda:{'fields':{'brand':'Anua'}},search)
         self.assertEqual(result['adaptive']['search_error'],'TimeoutError')
         self.assertTrue(result['adaptive']['visual_executed'])
+
+    def test_external_size_conflict(self):
+        result=identify_adaptive([],lambda:{'fields':{'brand':'QV','size':'140 ml'}},structured_evidence=[{'source':'catalog','fields':{'brand':'QV','size':'1000 ml'}}])
+        self.assertEqual(result['sku_evidence'][0]['comparison']['status'],'CONFLICT')
+        self.assertFalse(result['identity_verified'])
