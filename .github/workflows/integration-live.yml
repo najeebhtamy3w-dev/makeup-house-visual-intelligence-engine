@@ -1,0 +1,47 @@
+name: MH-VIE V0.16 live integration
+on:
+  push:
+    branches: ['feature/v015-search-integration']
+    paths: ['engine/integration_live.py', 'engine/integration_core.py', '.github/workflows/integration-live.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install Pillow
+      - run: python -m unittest discover -s tests -p test_integration_core.py -v
+      - name: Start temporary SearXNG
+        run: |
+          mkdir -p config
+          cat > config/settings.yml <<'YAML'
+          use_default_settings: true
+          server:
+            secret_key: "temporary-ci-only-not-for-production"
+            limiter: false
+          search:
+            formats: [html, json]
+          YAML
+          docker run -d --name searxng -p 127.0.0.1:8080:8080 -v "$PWD/config:/etc/searxng" searxng/searxng:latest
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/healthz; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Real discovery acceptance
+        run: |
+          timeout 480 python -u -m engine.integration_live --endpoint http://127.0.0.1:8080 --host cerave.com --host purador.com --host maybelline.com --host cdn.shopify.com
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v016-live-evidence
+          path: results-integration/
+      - name: Search diagnostics
+        if: always()
+        run: docker logs --tail 80 searxng || true
