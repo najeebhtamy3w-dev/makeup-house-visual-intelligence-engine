@@ -1,5 +1,5 @@
 {
-  "version": "0.25.0-rc1",
+  "version": "0.25.1-rc1",
   "status": "IMPLEMENTATION_CANDIDATE_NOT_ACCEPTED",
   "branch": "feature/v015-search-integration",
   "entrypoint": "python -m engine.service_main",
@@ -12,7 +12,8 @@
     "prepare_mask",
     "correct_mask",
     "locked_scene",
-    "studio"
+    "studio",
+    "direct_edit"
   ],
   "models": "MODEL_REGISTRY.json",
   "dependencies": [
@@ -30,5 +31,11 @@
     "Android acceptance"
   ],
   "publication_allowed": false,
-  "legacy_studio": "experimental; use locked_scene for product-preserving marketing"
+  "legacy_studio": "experimental; use locked_scene for product-preserving marketing",
+  "discovery_priority": [
+    "instagram_public_indexed_posts",
+    "general_web",
+    "optional_user_requested_direct_edit"
+  ],
+  "segmentation_required_for_direct_edit": false
 }
