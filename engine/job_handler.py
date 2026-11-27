@@ -90,6 +90,19 @@ class JobHandler:
                     result['text_qa']=compare_text(source,output/'edited.png',result['placement'],result['source_bounds'],read_crop)
                 except Exception as exc:
                     result['text_qa']={'status':'OCR_FAILED','error':type(exc).__name__,'identity_verified':False}
+        elif kind=='direct_edit':
+            if self.editor is None: raise RuntimeError('STUDIO_UNAVAILABLE')
+            from PIL import Image,ImageOps
+            import hashlib
+            source=self.input(payload['input'])
+            with Image.open(source) as im:
+                if im.width*im.height>25000000: raise ValueError('PIXEL_LIMIT')
+                original=ImageOps.exif_transpose(im).convert('RGB')
+            prompt=campaign_prompt(payload['brand'],payload['prompt']) if payload.get('brand') else payload['prompt']
+            edited=self.editor.edit(original,prompt,42).convert('RGB')
+            with (output/'edited.png').open('xb') as f: edited.save(f,format='PNG')
+            result={'status':'VISUAL_REVIEW_REQUIRED','identity_verified':False,'protected_pixels_preserved':None,'mask_required':False,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest()}
+            result['formats']=render_formats(output/'edited.png',output,payload.get('formats') or [])
         elif kind=='studio':
             if self.editor is None or self.segmenter is None: raise RuntimeError('STUDIO_UNAVAILABLE')
             source=self.input(payload['input'])
@@ -105,7 +118,7 @@ class JobHandler:
         result['artifact_directory']=str(output.relative_to(self.root))
         result['publication_allowed']=False
         result['brand']=payload.get('brand')
-        if kind in ('locked_scene','studio','discover','photo_discover','smart_discover'):
+        if kind in ('direct_edit','locked_scene','studio','discover','photo_discover','smart_discover'):
             archive=output.parent/(output.name+'.zip')
             export_review(output,archive,result)
             result['review_archive']=archive.name
