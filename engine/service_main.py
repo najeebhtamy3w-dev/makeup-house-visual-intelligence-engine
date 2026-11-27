@@ -36,7 +36,17 @@ def main():
             if os.environ.get('MHVIE_AESTHETIC_WEIGHTS'):
                 aesthetic=AestheticPredictor(encoder,os.environ['MHVIE_AESTHETIC_WEIGHTS'],os.environ['MHVIE_AESTHETIC_SHA256'])
             evaluator=VisualEvaluator(encoder,aesthetic)
-        handler=JobHandler(root,SearxDiscovery(os.environ['MHVIE_SEARX']),os.environ['MHVIE_HOSTS'].split(','),editor,segmenter,evaluator)
+        identity=None
+        if os.environ.get('MHVIE_VISION_MODEL'):
+            from paddleocr import PaddleOCR
+            from .multimodal import QwenIdentity
+            from .identity_service import IdentityService
+            from .safe_download import Downloader
+            reader=PaddleOCR(lang='en',use_doc_orientation_classify=False,use_doc_unwarping=False,use_textline_orientation=False,device='cpu')
+            model=QwenIdentity(os.environ['MHVIE_VISION_MODEL'],max_visual_tokens=384,max_new_tokens=128)
+            external=os.environ.get('MHVIE_IDENTITY_EXTERNAL_SEARCH')=='1'
+            identity=IdentityService(reader,model,SearxDiscovery(os.environ['MHVIE_SEARX']) if external else None,Downloader(os.environ['MHVIE_HOSTS'].split(',')) if external else None)
+        handler=JobHandler(root,SearxDiscovery(os.environ['MHVIE_SEARX']),os.environ['MHVIE_HOSTS'].split(','),editor,segmenter,evaluator,identity)
         while True:
             if runtime.run_next(handler) is None: time.sleep(1)
 
