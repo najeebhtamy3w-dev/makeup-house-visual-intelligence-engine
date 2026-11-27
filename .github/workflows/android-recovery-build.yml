@@ -41,7 +41,7 @@ jobs:
           fi
       - name: Build recovered application
         working-directory: extracted-source
-        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --stacktrace
+        run: gradle --no-daemon clean :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --stacktrace
       - name: Record APK hash
         working-directory: extracted-source
         run: sha256sum app/build/outputs/apk/debug/*.apk > apk-sha256.txt
