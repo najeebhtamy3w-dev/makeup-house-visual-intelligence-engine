@@ -8,6 +8,7 @@ from .deep_extraction import extract
 from .safe_download import inspect_image, validate_url
 from .visual_quality import signals, near_duplicate
 from .sku_verification import verify
+from .ranking import rank_candidates
 
 def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcode=None, ocr=None, encoder=None, classifier=None, max_pages=8, max_images=40, output_dir=None, identity_model=None):
     evidence=collect(reference,fields,barcode,ocr,identity_model)
@@ -82,4 +83,5 @@ def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcod
         if not endpoint or len(visited)>=max_pages or attempted>=max_images or sum(x.get('status')=='NEEDS_MANUAL_REVIEW' for x in report['images'])>=5:
             break
     report['status']='REVIEW_REQUIRED' if any(x.get('status')=='NEEDS_MANUAL_REVIEW' for x in report['images']) else 'NO_REVIEW_CANDIDATES'
+    report['ranked_candidates']=rank_candidates(report['images'])
     return report
