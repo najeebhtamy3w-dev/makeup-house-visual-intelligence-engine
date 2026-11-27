@@ -15,11 +15,15 @@ class LocalEditor:
         else:
             from diffusers import Flux2KleinPipeline
             cls=Flux2KleinPipeline
+        if not torch.cuda.is_bf16_supported(): raise RuntimeError('BF16_REQUIRED_FOR_THIS_PROFILE')
         self.pipeline=cls.from_pretrained(model_dir,torch_dtype=torch.bfloat16,local_files_only=True)
         self.pipeline.enable_model_cpu_offload()
         self.backend=backend
     def edit(self,image,prompt,seed=42):
         import torch
+        # Bound generation cost independently of original product resolution.
+        image=image.copy()
+        image.thumbnail((1024,1024),Image.Resampling.LANCZOS)
         kwargs={'image':image,'prompt':prompt,'generator':torch.Generator(device='cpu').manual_seed(seed)}
         if self.backend=='qwen':
             kwargs.update(num_inference_steps=40,true_cfg_scale=4.0)
@@ -52,3 +56,14 @@ def protected_edit(source,mask,prompt,editor,output,seed=42):
     output.parent.mkdir(parents=True,exist_ok=True)
     with output.open('xb') as stream: result.save(stream,format='PNG')
     return {'status':'REVIEW_REQUIRED','protected_pixels_preserved':True,'mask_verified':False,'identity_verified':False,'publication_allowed':False,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'output_sha256':hashlib.sha256(output.read_bytes()).hexdigest(),'seed':seed}
+
+
+class LazyEditor:
+    """Single-worker lazy initialization; failed loads are not cached."""
+    def __init__(self,factory):
+        self.factory=factory
+        self.editor=None
+    def edit(self,image,prompt,seed=42):
+        if self.editor is None:
+            self.editor=self.factory()
+        return self.editor.edit(image,prompt,seed)
