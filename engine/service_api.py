@@ -12,7 +12,8 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 class Job(BaseModel):
-    kind: Literal['discover','studio','identify']
+    kind: Literal['discover','studio','identify','barcode','photo_discover']
+    formats: list[Literal['square','story','portrait']]=Field(default_factory=list,max_length=3)
     brand: Literal['makeup_house','unwan_al_atr']|None=None
     query: str|None=Field(default=None,max_length=240)
     purpose: Literal['catalog','marketing']='catalog'
@@ -25,7 +26,7 @@ class Batch(BaseModel):
 def create_app(runtime,root,token):
     if len(token)<32: raise ValueError('STRONG_TOKEN_REQUIRED')
     root=Path(root)
-    app=FastAPI(title='MH-VIE Core',version='0.23.3',docs_url=None,redoc_url=None,openapi_url=None)
+    app=FastAPI(title='MH-VIE Core',version='0.24',docs_url=None,redoc_url=None,openapi_url=None)
     def auth(authorization: str=Header(default='')):
         if not hmac.compare_digest(authorization.encode(),('Bearer '+token).encode()):
             raise HTTPException(401,'UNAUTHORIZED')
@@ -54,7 +55,7 @@ def create_app(runtime,root,token):
     def submit(batch:Batch):
         for job in batch.jobs:
             if job.kind=='discover' and not (job.query or '').strip(): raise HTTPException(422,'QUERY_REQUIRED')
-            if job.kind=='identify' and not job.input: raise HTTPException(422,'INPUT_REQUIRED')
+            if job.kind in ('identify','barcode','photo_discover') and not job.input: raise HTTPException(422,'INPUT_REQUIRED')
             if job.kind=='studio' and not (job.input and (job.prompt or '').strip()): raise HTTPException(422,'STUDIO_INPUT_REQUIRED')
         return {'batch_id':runtime.submit([j.model_dump() for j in batch.jobs])}
     @app.get('/v1/batches/{batch_id}',dependencies=[Depends(auth)])
@@ -71,7 +72,7 @@ def create_app(runtime,root,token):
         return {'requeued':runtime.retry(batch_id)}
     @app.get('/v1/batches/{batch_id}/jobs/{job_id}/files/{name}',dependencies=[Depends(auth)])
     def artifact(batch_id:str,job_id:str,name:str):
-        if not re.fullmatch(r'(?:[a-f0-9]{64}\.bin|edited\.png|mask\.png)',name):
+        if not re.fullmatch(r'(?:[a-f0-9]{64}\.bin|edited\.png|mask\.png|square\.png|story\.png|portrait\.png)',name):
             raise HTTPException(404,'FILE_NOT_FOUND')
         row=next((r for r in runtime.status(batch_id) if r['id']==job_id and r['state']=='COMPLETED'),None)
         if row is None: raise HTTPException(404,'JOB_NOT_FOUND')
