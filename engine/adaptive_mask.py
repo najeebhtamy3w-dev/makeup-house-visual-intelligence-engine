@@ -20,4 +20,11 @@ def adaptive_mask(image,segmenter,threshold=128):
             # Do not automatically discard ambiguous product pixels.
         except Exception as exc:
             report["secondary_error"]=type(exc).__name__
+    bounds=first.getbbox()
+    if bounds:
+        x0,y0,x1,y1=bounds
+        report["bounding_box"]=list(bounds)
+        report["foreground_fraction"]=first.histogram()[255]/(first.width*first.height)
+        report["frame_clearance_pixels"]=min(x0,y0,first.width-x1,first.height-y1)
+        report["review_required"]=True
     return first,report
