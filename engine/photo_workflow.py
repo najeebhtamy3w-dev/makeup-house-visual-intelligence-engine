@@ -1,6 +1,6 @@
 from PIL import Image, ImageOps
 from .multimodal import search_name
-from .integration_core import discover
+from .priority_discovery import priority_discover as discover
 
 def read_barcodes(path):
     import zxingcpp
