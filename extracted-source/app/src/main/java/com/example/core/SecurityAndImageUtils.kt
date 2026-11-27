@@ -157,31 +157,53 @@ object SecurityAndImageUtils {
 
     fun parseCsvProductHints(context: Context, uri: Uri): List<CsvProductHint> {
         return try {
-            val lines = context.contentResolver.openInputStream(uri)?.bufferedReader()?.useLines { seq ->
-                seq.take(500).toList()
+            val bytes = context.contentResolver.openInputStream(uri)?.use { stream ->
+                val out = java.io.ByteArrayOutputStream(); val buffer = ByteArray(8192)
+                while (true) { val n = stream.read(buffer); if (n == -1) break; require(out.size() + n <= 10_000_000) { "CSV_SIZE_LIMIT" }; out.write(buffer, 0, n) }
+                out.toByteArray()
             } ?: return emptyList()
-            if (lines.isEmpty()) return emptyList()
-            val startIndex = if (lines.first().contains("brand", ignoreCase = true) ||
-                lines.first().contains("sku", ignoreCase = true) ||
-                lines.first().contains("الماركة")
-            ) 1 else 0
-
-            lines.drop(startIndex).mapNotNull { line ->
-                val parts = line.split(',', ';', '\t').map { it.trim().trim('"') }
-                if (parts.all { it.isBlank() }) return@mapNotNull null
-                CsvProductHint(
-                    sku = parts.getOrElse(0) { "" },
-                    brand = parts.getOrElse(1) { "" },
-                    name = parts.getOrElse(2) { "" },
-                    size = parts.getOrElse(3) { "" },
-                    shade = parts.getOrElse(4) { "" },
-                    barcode = parts.getOrElse(5) { "" }
-                )
-            }
+            parseCsvProductHintText(bytes.toString(Charsets.UTF_8))
         } catch (e: Exception) {
             Log.e(TAG, "Failed parsing CSV", e)
             emptyList()
         }
+    }
+
+    /** Bounded CSV parsing without silent row truncation or splitting quoted names. */
+    internal fun parseCsvProductHintText(input: String): List<CsvProductHint> {
+        require(input.length <= 10_000_000) { "CSV_SIZE_LIMIT" }
+        val text = input.removePrefix("\uFEFF")
+        val counts = mutableMapOf(',' to 0, ';' to 0, '\t' to 0)
+        var quoted = false; var index = 0
+        while (index < text.length) {
+            val c = text[index]
+            if (c == '"') { if (quoted && text.getOrNull(index + 1) == '"') index++ else quoted = !quoted }
+            else if (!quoted && c in counts) counts[c] = counts.getValue(c) + 1
+            else if (!quoted && c in "\r\n") break
+            index++
+        }
+        val delimiter = counts.maxBy { it.value }.key
+        val rows = mutableListOf<List<String>>(); var fields = mutableListOf<String>(); val cell = StringBuilder()
+        quoted = false; index = 0
+        fun finishCell() { require(fields.size < 64) { "CSV_COLUMN_LIMIT" }; fields.add(cell.toString()); cell.setLength(0) }
+        fun finishRow() { finishCell(); if (fields.any { it.isNotBlank() }) { require(rows.size < 20_001) { "CSV_ROW_LIMIT" }; rows.add(fields.toList()) }; fields = mutableListOf() }
+        while (index < text.length) {
+            val c = text[index]
+            when {
+                c == '"' && quoted && text.getOrNull(index + 1) == '"' -> { cell.append('"'); index++ }
+                c == '"' -> { require(quoted || cell.isEmpty()) { "INVALID_CSV_QUOTE" }; quoted = !quoted }
+                !quoted && c == delimiter -> finishCell()
+                !quoted && c in "\r\n" -> { finishRow(); if (c == '\r' && text.getOrNull(index + 1) == '\n') index++ }
+                else -> { require(cell.length < 4096) { "CSV_CELL_LIMIT" }; cell.append(c) }
+            }
+            index++
+        }
+        require(!quoted) { "UNCLOSED_CSV_QUOTE" }
+        if (cell.isNotEmpty() || fields.isNotEmpty()) finishRow()
+        val header = rows.firstOrNull().orEmpty().map { it.trim().lowercase() }
+        val start = if (header.any { it in setOf("sku", "brand", "الماركة", "barcode", "الباركود") }) 1 else 0
+        require(rows.size - start <= 20_000) { "CSV_ROW_LIMIT" }
+        return rows.drop(start).map { p -> CsvProductHint(p.getOrElse(0) { "" }, p.getOrElse(1) { "" }, p.getOrElse(2) { "" }, p.getOrElse(3) { "" }, p.getOrElse(4) { "" }, p.getOrElse(5) { "" }) }
     }
 
     fun decodeScaledBitmapFromFile(path: String, maxDimension: Int = 1024): Bitmap? {
