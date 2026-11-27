@@ -19,7 +19,7 @@ def resolve_input(barcode, query, path, lookup, visual, named):
                 fields=next(iter(unique.values()))
                 # A supplied photo or name may contradict the barcode. Require review.
                 result=named(search_name(fields))
-                return {**result,'route':'BARCODE_CATALOG','barcode_evidence':evidence,'input_consistency':'REVIEW_REQUIRED' if path or query else 'NOT_CHECKED','identity_verified':False,'publication_allowed':False}
+                return {**result,'route':'BARCODE_REGISTRY' if any(e.get('operator_reviewed') for e in evidence) else 'BARCODE_CATALOG','barcode_evidence':evidence,'input_consistency':'REVIEW_REQUIRED' if path or query else 'NOT_CHECKED','identity_verified':False,'publication_allowed':False}
             trace.append('BARCODE_AMBIGUOUS_OR_MISSING')
         except Exception as exc:
             trace.append('BARCODE_'+type(exc).__name__)
