@@ -20,7 +20,7 @@ class Stroke(BaseModel):
     points: list[tuple[int,int]]=Field(min_length=1,max_length=256)
 
 class Job(BaseModel):
-    kind: Literal['discover','studio','identify','barcode','photo_discover','smart_discover','prepare_mask','locked_scene','correct_mask']
+    kind: Literal['discover','studio','identify','barcode','photo_discover','smart_discover','prepare_mask','locked_scene','correct_mask','direct_edit']
     formats: list[Literal['square','story','portrait']]=Field(default_factory=list,max_length=3)
     brand: Literal['makeup_house','unwan_al_atr']|None=None
     barcode: str|None=Field(default=None,max_length=14)
@@ -92,7 +92,7 @@ def create_app(runtime,root,token):
                 if not (job.barcode or job.input or (job.query or '').strip()): raise HTTPException(422,'ADDITIONAL_INPUT_REQUIRED')
             if job.kind=='discover' and not (job.query or '').strip(): raise HTTPException(422,'QUERY_REQUIRED')
             if job.kind in ('identify','barcode','photo_discover','prepare_mask') and not job.input: raise HTTPException(422,'INPUT_REQUIRED')
-            if job.kind=='studio' and not (job.input and (job.prompt or '').strip()): raise HTTPException(422,'STUDIO_INPUT_REQUIRED')
+            if job.kind in ('studio','direct_edit') and not (job.input and (job.prompt or '').strip()): raise HTTPException(422,'STUDIO_INPUT_REQUIRED')
         return {'batch_id':runtime.submit([j.model_dump() for j in batch.jobs])}
     @app.get('/v1/batches/{batch_id}',dependencies=[Depends(auth)])
     def status(batch_id:str):
