@@ -34,7 +34,8 @@ def public_address(host):
     addresses = {x[4][0] for x in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
     if not addresses or any(not ipaddress.ip_address(x).is_global or ipaddress.ip_address(x).is_multicast for x in addresses):
         raise ValueError('NON_PUBLIC_ADDRESS')
-    return sorted(addresses)[0]
+    # Prefer IPv4 on runners without IPv6 routing; retain public-IP validation.
+    return sorted(addresses,key=lambda x:(ipaddress.ip_address(x).version,x))[0]
 
 class Downloader:
     def __init__(self, allowed_hosts, timeout=10):
