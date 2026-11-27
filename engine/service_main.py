@@ -27,7 +27,16 @@ def main():
             from .product_lock import BackgroundSegmenter
             editor=LocalEditor(os.environ['MHVIE_EDIT_MODEL'],os.environ['MHVIE_EDIT_BACKEND'])
             segmenter=BackgroundSegmenter()
-        handler=JobHandler(root,SearxDiscovery(os.environ['MHVIE_SEARX']),os.environ['MHVIE_HOSTS'].split(','),editor,segmenter)
+        evaluator=None
+        if os.environ.get('MHVIE_CLIP_WEIGHTS'):
+            from .visual_evaluator import LocalClip,VisualEvaluator
+            from .aesthetic import AestheticPredictor
+            encoder=LocalClip(os.environ['MHVIE_CLIP_WEIGHTS'],device='cpu')
+            aesthetic=None
+            if os.environ.get('MHVIE_AESTHETIC_WEIGHTS'):
+                aesthetic=AestheticPredictor(encoder,os.environ['MHVIE_AESTHETIC_WEIGHTS'],os.environ['MHVIE_AESTHETIC_SHA256'])
+            evaluator=VisualEvaluator(encoder,aesthetic)
+        handler=JobHandler(root,SearxDiscovery(os.environ['MHVIE_SEARX']),os.environ['MHVIE_HOSTS'].split(','),editor,segmenter,evaluator)
         while True:
             if runtime.run_next(handler) is None: time.sleep(1)
 
