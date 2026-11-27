@@ -16,8 +16,9 @@ from .review_export import export_review
 from .product_lock import prepare_mask,verify_pixels
 
 class JobHandler:
-    def __init__(self,root,search,hosts,editor=None,segmenter=None,visual_evaluator=None,identity_service=None):
+    def __init__(self,root,search,hosts,editor=None,segmenter=None,visual_evaluator=None,identity_service=None,ocr_reader=None):
         self.identity_service=identity_service
+        self.ocr_reader=ocr_reader
         self.root=Path(root).resolve()
         self.search=search
         self.root.mkdir(parents=True,exist_ok=True)
@@ -75,6 +76,20 @@ class JobHandler:
             result=compose_scene(source,mask,self.editor,prompt,output/'edited.png',mask_reviewed=True)
             result['formats']=render_formats(output/'edited.png',output,payload.get('formats') or [])
             result['formats_require_review']=True
+            result['text_qa']={'status':'OCR_NOT_CONFIGURED','identity_verified':False}
+            if self.ocr_reader is not None:
+                from .scene_text_qa import compare_text
+                from .identity_fusion import read_ocr,strong_lines
+                import tempfile
+                def read_crop(image):
+                    with tempfile.TemporaryDirectory() as d:
+                        path=Path(d)/'crop.png'
+                        image.save(path)
+                        return strong_lines(read_ocr(path,self.ocr_reader))
+                try:
+                    result['text_qa']=compare_text(source,output/'edited.png',result['placement'],result['source_bounds'],read_crop)
+                except Exception as exc:
+                    result['text_qa']={'status':'OCR_FAILED','error':type(exc).__name__,'identity_verified':False}
         elif kind=='studio':
             if self.editor is None or self.segmenter is None: raise RuntimeError('STUDIO_UNAVAILABLE')
             source=self.input(payload['input'])
