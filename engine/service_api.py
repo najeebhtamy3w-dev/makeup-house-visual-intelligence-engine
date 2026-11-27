@@ -4,6 +4,8 @@ import hmac
 import json
 import io
 import re
+import os
+import tempfile
 from fastapi.responses import FileResponse
 from pathlib import Path
 from PIL import Image
@@ -37,8 +39,8 @@ def create_app(runtime,root,token):
     async def upload(request:Request):
         data=bytearray()
         async for chunk in request.stream():
+            if len(data)+len(chunk)>10000000: raise HTTPException(413,'INPUT_LIMIT')
             data.extend(chunk)
-            if len(data)>10000000: raise HTTPException(413,'INPUT_LIMIT')
         try:
             with Image.open(io.BytesIO(data)) as im:
                 ext={'PNG':'png','JPEG':'jpg','WEBP':'webp'}.get(im.format)
@@ -47,13 +49,27 @@ def create_app(runtime,root,token):
         except Exception: raise HTTPException(422,'INVALID_IMAGE')
         name=hashlib.sha256(data).hexdigest()+'.'+ext
         folder=root/'inputs'; folder.mkdir(parents=True,exist_ok=True)
-        try:
-            with (folder/name).open('xb') as f: f.write(data)
-        except FileExistsError: pass
+        with tempfile.NamedTemporaryFile(dir=folder,delete=False) as f:
+            temp=Path(f.name)
+            try:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+                f.close()
+                try: os.link(temp,folder/name)
+                except FileExistsError:
+                    if (folder/name).is_symlink() or not (folder/name).is_file() or hashlib.sha256((folder/name).read_bytes()).hexdigest()!=name.split('.')[0]:
+                        raise HTTPException(409,'INPUT_INTEGRITY_CONFLICT')
+            finally:
+                temp.unlink(missing_ok=True)
         return {'input':name}
     @app.post('/v1/batches',dependencies=[Depends(auth)])
     def submit(batch:Batch):
         for job in batch.jobs:
+            if job.input is not None:
+                if not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|jpeg|webp)',job.input): raise HTTPException(422,'INVALID_INPUT_ID')
+                candidate=root/'inputs'/job.input
+                if candidate.is_symlink() or not candidate.is_file(): raise HTTPException(404,'INPUT_NOT_FOUND')
             if job.kind=='discover' and not (job.query or '').strip(): raise HTTPException(422,'QUERY_REQUIRED')
             if job.kind in ('identify','barcode','photo_discover') and not job.input: raise HTTPException(422,'INPUT_REQUIRED')
             if job.kind=='studio' and not (job.input and (job.prompt or '').strip()): raise HTTPException(422,'STUDIO_INPUT_REQUIRED')
@@ -77,7 +93,9 @@ def create_app(runtime,root,token):
         row=next((r for r in runtime.status(batch_id) if r['id']==job_id and r['state']=='COMPLETED'),None)
         if row is None: raise HTTPException(404,'JOB_NOT_FOUND')
         result=json.loads(row['result'])
-        base=(root/result['artifact_directory']).resolve()
+        directory=result.get('artifact_directory')
+        if not isinstance(directory,str): raise HTTPException(404,'FILE_NOT_FOUND')
+        base=(root/directory).resolve()
         expected=(root/'jobs'/job_id).resolve()
         file=(base/name).resolve()
         if base.parent!=expected or file.parent!=base or not file.is_file():
