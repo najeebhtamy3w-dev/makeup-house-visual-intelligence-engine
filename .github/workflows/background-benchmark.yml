@@ -1,7 +1,7 @@
 name: MH-VIE background inference
 on:
   push:
-    branches: [development]
+    branches: [development, 'feature/v015-search-integration']
     paths: ['engine/background.py','engine/background_benchmark.py','.github/workflows/background-benchmark.yml']
   workflow_dispatch:
 permissions:
@@ -23,6 +23,36 @@ jobs:
           mkdir -p background-results
           set -o pipefail
           python -m engine.background_benchmark 2>&1 | tee background-results/run.log
+      - name: Real BiRefNet mask and protected pixel acceptance
+        run: |
+          python - <<'PY'
+          import json, zipfile
+          from pathlib import Path
+          from PIL import Image
+          from engine.product_lock import BackgroundSegmenter, prepare_mask, verify_pixels
+          from engine.creative_studio import protected_edit
+          p=Path('acceptance/blind10')
+          archive=p/'MHVIE_blind_10.zip'
+          out=Path('background-results')
+          source=out/'source.jpg'
+          if archive.exists():
+              with zipfile.ZipFile(archive) as z:
+                  entry=z.getinfo('images/10.jpg')
+                  assert entry.file_size<=10000000
+                  source.write_bytes(z.read(entry))
+          else:
+              source.write_bytes((p/'images/10.jpg').read_bytes())
+          segmenter=BackgroundSegmenter()
+          mask=prepare_mask(source,out/'mask.png',segmenter)
+          class TestEditor:
+              def edit(self,image,prompt,seed):
+                  return Image.new('RGB',image.size,'#b6c6d6')
+          edit=protected_edit(source,out/'mask.png','test background',TestEditor(),out/'protected.png')
+          verification=verify_pixels(source,out/'protected.png',out/'mask.png')
+          assert verification['protected_pixels_preserved']
+          assert not verification['publication_allowed']
+          (out/'integrated.json').write_text(json.dumps({'mask':mask,'edit':edit,'verification':verification,'editor':'FIXTURE_NOT_GENERATIVE'},indent=2))
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
