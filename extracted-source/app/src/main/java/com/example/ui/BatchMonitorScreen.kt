@@ -54,6 +54,7 @@ fun BatchMonitorScreen(
     onResumeBatch: (BatchJob) -> Unit,
     onRetryFailed: (BatchJob) -> Unit,
     onExportBatch: (BatchJob, ExportFormat) -> Unit,
+    onCancelBatch: (BatchJob) -> Unit,
     onOpenProduct: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -146,7 +147,7 @@ fun BatchMonitorScreen(
                                 Button(onClick = onPauseBatch, modifier = Modifier.weight(1f)) {
                                     Icon(Icons.Default.Pause, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("إيقاف مؤقت")
+                                    Text("إيقاف المتابعة")
                                 }
                             } else {
                                 Button(onClick = { onResumeBatch(activeBatch) }, modifier = Modifier.weight(1f)) {
@@ -162,6 +163,9 @@ fun BatchMonitorScreen(
                             }
                         }
 
+                        if (activeBatch.statusEnum() in setOf(BatchStatus.RUNNING, BatchStatus.PAUSED, BatchStatus.QUEUED)) {
+                            OutlinedButton(onClick = { onCancelBatch(activeBatch) }) { Text("إلغاء مهام الدفعة على الخادم") }
+                        }
                         // Export Actions Row
                         Text("تصدير نتائج الدفعة:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

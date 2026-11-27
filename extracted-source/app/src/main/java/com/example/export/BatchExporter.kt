@@ -79,7 +79,7 @@ object BatchExporter {
                 rights,
                 p.zeroReasonEnum().labelAr,
                 p.approvalEnum().labelAr
-            ).joinToString(",") { cell -> "\"${cell.replace("\"", "\"\"")}\"" }
+            ).joinToString(",") { cell -> "\"${safeCsvCell(cell).replace("\"", "\"\"")}\"" }
             sb.appendLine(row)
         }
         file.writeText(sb.toString(), Charsets.UTF_8)
@@ -113,11 +113,11 @@ object BatchExporter {
                     append("<div class='grid'>")
                     for (c in cands.take(6)) {
                         append("<div class='thumb'>")
-                        append("<img src='${escapeHtml(c.imageUrl)}' alt='${escapeHtml(p.displayTitle())}' loading='lazy'/>")
+                        append("<img src='${escapeHtml(safeWebUrl(c.imageUrl))}' alt='${escapeHtml(p.displayTitle())}' loading='lazy'/>")
                         append("<div class='caption'>")
                         append("<span>تطابق: ${(c.matchScore * 100).toInt()}% | جودة: ${(c.aestheticScore * 100).toInt()}%</span><br/>")
                         append("<span>${escapeHtml(c.rightsEnum().labelAr)}</span><br/>")
-                        append("<a href='${escapeHtml(c.pageUrl.ifBlank { c.imageUrl })}' target='_blank'>المصدر: ${escapeHtml(c.sourceName)}</a>")
+                        append("<a href='${escapeHtml(safeWebUrl(c.pageUrl.ifBlank { c.imageUrl }))}' target='_blank'>المصدر: ${escapeHtml(c.sourceName)}</a>")
                         append("</div></div>")
                     }
                     append("</div>")
@@ -130,6 +130,7 @@ object BatchExporter {
             <html lang="ar" dir="rtl">
             <head>
               <meta charset="utf-8"/>
+              <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"/>
               <meta name="viewport" content="width=device-width,initial-scale=1"/>
               <title>معرض نتائج ${escapeHtml(batch.title)} — MAKEUP HOUSE</title>
               <style>
@@ -228,7 +229,10 @@ object BatchExporter {
                                 "rightsStatus" to c.rightsStatus,
                                 "matchScore" to c.matchScore,
                                 "aestheticScore" to c.aestheticScore,
-                                "reviewDecision" to c.reviewDecision
+                                "reviewDecision" to c.reviewDecision,
+                                "sha256" to c.perceptualHash,
+                                "licenseName" to c.licenseName,
+                                "verificationNotes" to c.verificationNotes
                             )
                         }
                     )
@@ -238,8 +242,8 @@ object BatchExporter {
                 // Include original store image if available locally
                 p.localOriginalPaths.forEachIndexed { idx, path ->
                     val f = File(path)
-                    if (f.exists() && f.length() < 15_000_000) {
-                        zos.putNextEntry(ZipEntry("$rootName/ORIGINAL_IMAGES/${p.id}_orig_$idx.jpg"))
+                    if (f.isFile) {
+                        zos.putNextEntry(ZipEntry("$rootName/ORIGINAL_IMAGES/${p.id}_orig_$idx.${imageExtension(f)}"))
                         f.inputStream().use { it.copyTo(zos) }
                         zos.closeEntry()
                     }
@@ -248,8 +252,8 @@ object BatchExporter {
                 cands.forEachIndexed { idx, c ->
                     if (c.localSavedPath.isNotBlank()) {
                         val f = File(c.localSavedPath)
-                        if (f.exists() && f.length() < 15_000_000) {
-                            zos.putNextEntry(ZipEntry("$rootName/$folder/${p.id}/candidate_$idx.jpg"))
+                        if (f.isFile) {
+                            zos.putNextEntry(ZipEntry("$rootName/$folder/${p.id}/candidate_$idx.${imageExtension(f)}"))
                             f.inputStream().use { it.copyTo(zos) }
                             zos.closeEntry()
                         }
@@ -313,12 +317,27 @@ object BatchExporter {
                     "zeroResultReason" to p.zeroResultReason,
                     "approvalStatus" to p.approvalStatus,
                     "candidatesCount" to cands.size,
+                    "publicationAllowed" to false,
+                    "sourcesAndRights" to cands.map { c -> mapOf("sourceUrl" to c.pageUrl, "imageUrl" to c.imageUrl, "sourceName" to c.sourceName, "rightsStatus" to c.rightsStatus, "license" to c.licenseName, "reviewDecision" to c.reviewDecision, "sha256" to c.perceptualHash, "verificationNotes" to c.verificationNotes) },
                     "bestImageUrl" to p.bestImageUrl
                 )
             }
         )
         return mapJsonAdapter.toJson(root)
     }
+
+    private fun imageExtension(file: File): String {
+        val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(file.absolutePath, options)
+        return when (options.outMimeType) { "image/png" -> "png"; "image/webp" -> "webp"; "image/jpeg" -> "jpg"; "image/bmp" -> "bmp"; else -> "bin" }
+    }
+
+    internal fun safeCsvCell(value: String): String = if (value.trimStart().firstOrNull() in setOf('=', '+', '-', '@', '\t', '\r')) "'" + value else value
+
+    private fun safeWebUrl(value: String): String = runCatching {
+        val uri = java.net.URI(value)
+        if (uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.userInfo == null) value else ""
+    }.getOrDefault("")
 
     private fun escapeHtml(input: String): String =
         input.replace("&", "&amp;")

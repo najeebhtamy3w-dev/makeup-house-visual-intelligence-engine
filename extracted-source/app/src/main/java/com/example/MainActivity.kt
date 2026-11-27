@@ -15,7 +15,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // Configure App Check with launch intent BEFORE Compose UI, ViewModels, or Firebase operations
-        configureAppCheck(this, intent)
+        if (resources.getIdentifier("google_app_id", "string", packageName) != 0) configureAppCheck(this, intent)
 
         setContent {
             MakeupHouseTheme {

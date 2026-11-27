@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -106,7 +107,7 @@ fun BrandLibraryScreen(
                         ) {
                             Text(brand.brandName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text(
-                                text = "نجاح ${(brand.successRate * 100).toInt()}% • ${brand.processedCount} منتج",
+                                text = "${brand.processedCount} منتج • بيانات الماركة للمراجعة",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -237,7 +238,7 @@ fun EngineManagerScreen(
                     if (engine.lastTestSummary.isNotBlank()) {
                         Text(engine.lastTestSummary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (engine.engineKey == "searxng_meta") {
+                    if (engine.engineKey in setOf("searxng_meta", "mhvie_backend")) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -246,7 +247,7 @@ fun EngineManagerScreen(
                             OutlinedTextField(
                                 value = endpointInput,
                                 onValueChange = { endpointInput = it },
-                                label = { Text("رابط خادم SearXNG (https://...)") },
+                                label = { Text("رابط الخادم (https://...)") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -273,9 +274,13 @@ fun SettingsAndExportScreen(
     onOpenEngines: () -> Unit,
     onOpenZeroResults: () -> Unit,
     onSignOut: () -> Unit,
+    backendEndpoint: String,
+    onSaveBackend: (String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val logs = (logsState as? UiState.Success)?.data.orEmpty()
+    var backendUrl by remember(backendEndpoint) { mutableStateOf(backendEndpoint) }
+    var backendToken by remember { mutableStateOf("") }
     val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onRestoreBackup(uri)
     }
@@ -289,6 +294,22 @@ fun SettingsAndExportScreen(
             SectionHeader(title = "الإدارة والأدوات المتقدمة")
         }
 
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("محرك MH-VIE الخاص بك", style = MaterialTheme.typography.titleMedium)
+                    Text("الصور تُرسل فقط عند تشغيل مهمة. يلزم HTTPS ورمز وصول خاص بخادمك. يُحفظ الرمز مشفرًا بمفتاح Android Keystore ولا يُصدّر.")
+                    OutlinedTextField(backendUrl, { backendUrl = it }, label = { Text("https://your-engine.example") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(backendToken, { backendToken = it }, label = { Text("رمز الوصول — اتركه فارغًا للإبقاء على الحالي") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                    Button(onClick = { onSaveBackend(backendUrl, backendToken); backendToken = "" }) { Text("حفظ اتصال المحرك") }
+                    Text("هوية النشاط للاستوديو")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = settings.brandProfile == "makeup_house", onClick = { onUpdateSettings { it.copy(brandProfile = "makeup_house") } }, label = { Text("MAKEUP HOUSE") })
+                        FilterChip(selected = settings.brandProfile == "unwan_al_atr", onClick = { onUpdateSettings { it.copy(brandProfile = "unwan_al_atr") } }, label = { Text("عنوان العطر") })
+                    }
+                }
+            }
+        }
         // Quick-access cards for mobile screens
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -338,7 +359,7 @@ fun SettingsAndExportScreen(
                         Text("الحساب المرتبط", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(userEmail ?: "مستخدم Google", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     }
-                    OutlinedButton(onClick = onSignOut) {
+                    if (userEmail != "مساحة العمل المحلية") OutlinedButton(onClick = onSignOut) {
                         Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("تسجيل الخروج")
@@ -347,50 +368,8 @@ fun SettingsAndExportScreen(
             }
         }
 
-        // Thresholds Card
         item {
-            Card(
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("عتبات المطابقة والجودة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("الحد الأدنى لدرجة مطابقة المنتج: ${(settings.minMatchScore * 100).toInt()}%")
-                    Slider(
-                        value = settings.minMatchScore.toFloat(),
-                        onValueChange = { v -> onUpdateSettings { it.copy(minMatchScore = v.toDouble()) } },
-                        valueRange = 0.4f..0.95f
-                    )
-                    Text("الحد الأدنى لجودة الصورة وجماليتها: ${(settings.minAestheticScore * 100).toInt()}%")
-                    Slider(
-                        value = settings.minAestheticScore.toFloat(),
-                        onValueChange = { v -> onUpdateSettings { it.copy(minAestheticScore = v.toDouble()) } },
-                        valueRange = 0.25f..0.90f
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("التوقف التصاعدي التلقائي عند كفاية الصور")
-                        Switch(
-                            checked = settings.autoStopOnSufficientImages,
-                            onCheckedChange = { checked -> onUpdateSettings { it.copy(autoStopOnSufficientImages = checked) } }
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("تفعيل البحث الاجتماعي المفهرس (L3)")
-                        Switch(
-                            checked = settings.enableSocialDiscovery,
-                            onCheckedChange = { checked -> onUpdateSettings { it.copy(enableSocialDiscovery = checked) } }
-                        )
-                    }
-                }
-            }
+            Notice("حدود الهوية والجودة والتوجيه تُدار في محرك MH-VIE على الخادم. لا تمثل درجات النماذج غير المعايرة نسب ثقة أو إذنًا للنشر.")
         }
 
         // Backup & Restore Card

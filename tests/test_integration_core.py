@@ -20,6 +20,12 @@ class IntegrationTest(unittest.TestCase):
             self.assertEqual(result['attempts'],2)
             self.assertFalse(result['publication_allowed'])
             self.assertFalse(result['candidates'][0]['identity_verified'])
+            p=result['candidates'][0]['provenance']
+            self.assertEqual(p['source_url'],'https://example.com/product')
+            self.assertEqual(p['sha256'],result['candidates'][0]['sha256'])
+            self.assertEqual(p['rights_status'],'RIGHTS_UNVERIFIED')
+            self.assertIsNone(p['license'])
+            self.assertTrue(p['retrieved_at'].endswith('+00:00'))
     def test_empty(self):
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(discover('test',lambda q:[],[],folder)['status'],'NO_CANDIDATES')

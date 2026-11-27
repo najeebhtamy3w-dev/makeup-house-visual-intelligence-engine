@@ -2,6 +2,19 @@ import unittest
 from engine.identity_fusion import fuse
 
 class FusionTests(unittest.TestCase):
+    def test_short_brands_are_tokens_and_invalid_confidence_is_ignored(self):
+        for brand in ('QV','YC'):
+            self.assertEqual(fuse({'brand':brand},[{'text':brand,'score':.95}])['fields']['brand']['status'],'OCR_CORROBORATED')
+            self.assertEqual(fuse({'brand':brand},[{'text':brand+'Plus','score':.95}])['fields']['brand']['status'],'UNSUPPORTED')
+        from engine.identity_fusion import strong_lines
+        self.assertEqual(strong_lines([{'text':'bad','score':float('inf')},{'text':'bad','score':'no'}, {'text':'bad','score':True}, {'text':'good','score':.95}]),['good'])
+
+    def test_dual_unit_label_and_metric_equivalence(self):
+        r=fuse({'size':'6 fl oz (178 ml)'},[{'text':'178ml','score':.95}])
+        self.assertFalse(r['size_conflict'])
+        self.assertEqual(r['fields']['size']['status'],'OCR_CORROBORATED')
+        from engine.identity_fusion import canonical_size
+        self.assertEqual(canonical_size('1 kg'),canonical_size('1000 g'))
     def test_agreement_not_verification(self):
         r=fuse({'brand':'Anua','size':'30ml'},[{'text':'ANUA 30 ml','score':.99}])
         self.assertEqual(r['fields']['brand']['status'],'OCR_CORROBORATED')

@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: android-recovery-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   debug:
     runs-on: ubuntu-latest
@@ -25,22 +28,30 @@ jobs:
           gradle-version: '9.3.1'
       - name: Prepare Android SDK
         run: sdkmanager 'platforms;android-36' 'platforms;android-36.1' 'build-tools;36.0.0'
-      - name: Prepare ephemeral debug signing
+      - name: Prepare engineering debug signing
         working-directory: extracted-source
+        env:
+          ENGINEERING_KEYSTORE: ${{ secrets.MHVIE_ENGINEERING_KEYSTORE_B64 }}
         run: |
-          if [ ! -f debug.keystore ]; then
+          if [ -n "$ENGINEERING_KEYSTORE" ]; then
+            printf '%s' "$ENGINEERING_KEYSTORE" | base64 --decode > debug.keystore
+          elif [ ! -f debug.keystore ]; then
             keytool -genkeypair -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
+            echo 'Ephemeral CI signature: upgrade compatibility with delivered APK is not guaranteed.'
           fi
       - name: Build recovered application
         working-directory: extracted-source
-        run: gradle --no-daemon :app:assembleDebug --stacktrace
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --stacktrace
       - name: Record APK hash
         working-directory: extracted-source
         run: sha256sum app/build/outputs/apk/debug/*.apk > apk-sha256.txt
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: mhvie-recovery-debug
+          name: mhvie-recovery-debug-${{ github.sha }}
           path: |
             extracted-source/app/build/outputs/apk/debug/*.apk
             extracted-source/apk-sha256.txt
-          if-no-files-found: error
+            extracted-source/app/build/reports/
+            extracted-source/app/build/test-results/
+          retention-days: 30

@@ -18,8 +18,8 @@ import kotlin.math.min
 
 object SecurityAndImageUtils {
     private const val TAG = "SecurityAndImageUtils"
-    private const val MAX_ZIP_ENTRIES = 200
-    private const val MAX_ZIP_UNCOMPRESSED_BYTES = 80L * 1024L * 1024L // 80 MB
+    private const val MAX_ZIP_ENTRIES = 10000
+    private const val MAX_ZIP_UNCOMPRESSED_BYTES = 500L * 1024L * 1024L // 500 MB
     private const val MAX_SINGLE_IMAGE_BYTES = 15L * 1024L * 1024L // 15 MB
 
     private val ALLOWED_IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bmp")
@@ -67,27 +67,28 @@ object SecurityAndImageUtils {
      * READ_EXTERNAL_STORAGE / READ_MEDIA_IMAGES permissions.
      */
     fun copyUriToInternalImageFile(context: Context, uri: Uri, batchFolder: String): String? {
+        require(batchFolder.matches(Regex("[a-zA-Z0-9_-]{1,100}")))
+        val dir = File(context.filesDir, "mhvie_images/$batchFolder").apply { mkdirs() }
+        val temporary = File(dir, "orig_${UUID.randomUUID()}.part")
         return try {
-            val dir = File(context.filesDir, "mhvie_images/$batchFolder").apply { mkdirs() }
-            val outFile = File(dir, "orig_${UUID.randomUUID().toString().take(8)}.jpg")
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                val rawBytes = input.readBytes()
-                if (rawBytes.size > MAX_SINGLE_IMAGE_BYTES) return null
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, bounds)
-                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-
-                val bitmap = decodeScaledBitmapFromBytes(rawBytes, 1400) ?: return null
-                FileOutputStream(outFile).use { fos ->
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
+            val input = context.contentResolver.openInputStream(uri) ?: return null
+            input.use { source ->
+                temporary.outputStream().use { output ->
+                    val chunk = ByteArray(8192); var total = 0L
+                    while (true) {
+                        val count = source.read(chunk); if (count == -1) break
+                        total += count; require(total <= MAX_SINGLE_IMAGE_BYTES) { "IMAGE_SIZE_LIMIT" }
+                        output.write(chunk, 0, count)
+                    }
                 }
-                bitmap.recycle()
-                outFile.absolutePath
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to copy image uri: $uri", e)
-            null
-        }
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(temporary.absolutePath, bounds)
+            require(bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outWidth.toLong() * bounds.outHeight <= 80_000_000) { "INVALID_IMAGE" }
+            val extension = when (bounds.outMimeType) { "image/jpeg" -> "jpg"; "image/png" -> "png"; "image/webp" -> "webp"; "image/bmp" -> "bmp"; else -> error("UNSUPPORTED_IMAGE_TYPE") }
+            val original = File(dir, temporary.name.removeSuffix(".part") + ".$extension")
+            check(temporary.renameTo(original)); original.absolutePath
+        } catch (e: Exception) { temporary.delete(); null }
     }
 
     /**
@@ -99,77 +100,46 @@ object SecurityAndImageUtils {
         val filePaths: List<String>
     )
 
-    fun safeExtractImagesFromZip(
-        context: Context,
-        zipUri: Uri,
-        batchFolder: String
-    ): Result<List<ExtractedZipGroup>> {
-        return try {
-            val destRoot = File(context.filesDir, "mhvie_images/$batchFolder").apply { mkdirs() }
-            val canonicalRoot = destRoot.canonicalPath
-            val groupedFiles = linkedMapOf<String, MutableList<String>>()
-            var totalBytes = 0L
-            var entryCount = 0
-
-            context.contentResolver.openInputStream(zipUri)?.use { rawIn ->
-                ZipInputStream(BufferedInputStream(rawIn)).use { zis ->
-                    var entry = zis.nextEntry
-                    while (entry != null) {
-                        entryCount++
-                        if (entryCount > MAX_ZIP_ENTRIES) {
-                            return Result.failure(IllegalStateException("تجاوز الأرشيف الحد الأقصى للملفات ($MAX_ZIP_ENTRIES)"))
+    fun safeExtractImagesFromZip(context: Context, zipUri: Uri, batchFolder: String): Result<List<ExtractedZipGroup>> {
+        require(batchFolder.matches(Regex("[a-zA-Z0-9_-]{1,100}")))
+        val destination = File(context.filesDir, "mhvie_images/$batchFolder").apply { mkdirs() }
+        val created = mutableListOf<File>()
+        return runCatching {
+            val groups = linkedMapOf<String, MutableList<String>>()
+            var total = 0L; var count = 0
+            val raw = context.contentResolver.openInputStream(zipUri) ?: error("تعذر قراءة ZIP")
+            ZipInputStream(BufferedInputStream(raw)).use { zip ->
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+                    require(++count <= MAX_ZIP_ENTRIES) { "ZIP_ENTRY_LIMIT" }
+                    val name = entry.name.replace('\\', '/')
+                    val leaf = name.substringAfterLast('/')
+                    val ext = leaf.substringAfterLast('.', "").lowercase()
+                    val accepted = !entry.isDirectory && ext in ALLOWED_IMAGE_EXTENSIONS && !leaf.startsWith("._") && !name.contains("__MACOSX")
+                    val output = if (accepted) File(destination, "zip_${UUID.randomUUID()}.$ext").also { created.add(it) } else null
+                    val stream = output?.outputStream()
+                    try {
+                        var entryBytes = 0L; val buffer = ByteArray(8192)
+                        while (true) {
+                            val n = zip.read(buffer); if (n == -1) break
+                            total += n; entryBytes += n
+                            require(total <= MAX_ZIP_UNCOMPRESSED_BYTES && entryBytes <= MAX_SINGLE_IMAGE_BYTES) { "ZIP_SIZE_LIMIT" }
+                            stream?.write(buffer, 0, n)
                         }
-                        if (!entry.isDirectory) {
-                            val name = entry.name.replace('\\', '/')
-                            val cleanName = name.substringAfterLast('/')
-                            val ext = cleanName.substringAfterLast('.', "").lowercase()
-                            if (ext in ALLOWED_IMAGE_EXTENSIONS && !cleanName.startsWith("._") && !name.contains("__MACOSX")) {
-                                val groupKey = if (name.contains('/')) {
-                                    name.substringBeforeLast('/').substringAfterLast('/').ifBlank { "default" }
-                                } else {
-                                    cleanName.substringBeforeLast('.')
-                                }
-                                val outFile = File(destRoot, "zip_${entryCount}_${cleanName.replace(Regex("[^a-zA-Z0-9._-]"), "_")}")
-                                val canonicalOut = outFile.canonicalPath
-                                if (!canonicalOut.startsWith(canonicalRoot + File.separator)) {
-                                    return Result.failure(SecurityException("مسار غير آمن داخل الأرشيف (Zip-Slip): $name"))
-                                }
-                                val buffer = ByteArray(8192)
-                                val baos = java.io.ByteArrayOutputStream()
-                                var read = zis.read(buffer)
-                                while (read != -1) {
-                                    totalBytes += read
-                                    if (totalBytes > MAX_ZIP_UNCOMPRESSED_BYTES) {
-                                        return Result.failure(IllegalStateException("تجاوز حجم فك الضغط الحد الآمن (80MB Zip-Bomb Guard)"))
-                                    }
-                                    baos.write(buffer, 0, read)
-                                    read = zis.read(buffer)
-                                }
-                                val bytes = baos.toByteArray()
-                                val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-                                if (opts.outWidth > 0 && opts.outHeight > 0) {
-                                    FileOutputStream(outFile).use { it.write(bytes) }
-                                    groupedFiles.getOrPut(groupKey) { mutableListOf() }.add(outFile.absolutePath)
-                                }
-                            }
-                        }
-                        zis.closeEntry()
-                        entry = zis.nextEntry
+                    } finally { stream?.close() }
+                    if (output != null) {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeFile(output.absolutePath, bounds)
+                        require(bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outWidth.toLong() * bounds.outHeight <= 80_000_000) { "INVALID_ZIP_IMAGE" }
+                        val group = if (name.contains('/')) name.substringBeforeLast('/') else leaf.substringBeforeLast('.')
+                        groups.getOrPut(group) { mutableListOf() }.add(output.absolutePath)
                     }
+                    zip.closeEntry()
                 }
-            } ?: return Result.failure(IllegalStateException("تعذر قراءة ملف ZIP"))
-
-            val groups = groupedFiles.map { (key, list) -> ExtractedZipGroup(key, list.take(5)) }
-            if (groups.isEmpty()) {
-                Result.failure(IllegalStateException("لم يتم العثور على صور صالحة داخل ملف ZIP"))
-            } else {
-                Result.success(groups)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "ZIP extraction failed", e)
-            Result.failure(e)
-        }
+            require(groups.isNotEmpty()) { "لم توجد صور صالحة داخل ZIP" }
+            groups.map { (name, paths) -> ExtractedZipGroup(name, paths) }
+        }.onFailure { created.forEach(File::delete) }
     }
 
     /**

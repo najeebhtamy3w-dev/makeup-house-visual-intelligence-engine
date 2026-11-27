@@ -96,7 +96,13 @@ internal fun FirebaseAuth.authStateFlow(): Flow<FirebaseUser?> = callbackFlow {
 }
 
 @Composable
-fun AppNavigation(auth: FirebaseAuth = Firebase.auth) {
+fun AppNavigation(auth: FirebaseAuth? = null) {
+    if (auth == null) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            AuthenticatedAppShell(currentUserId = "local_workspace", userEmail = "مساحة العمل المحلية")
+        }
+        return
+    }
     val currentUser by auth.authStateFlow().collectAsStateWithLifecycle(initialValue = auth.currentUser)
     val user = currentUser
 
@@ -249,6 +255,7 @@ private fun AuthenticatedAppShell(
                             onResumeBatch = { viewModel.resumeBatch(it) },
                             onRetryFailed = { viewModel.retryZeroOrFailedInBatch(it) },
                             onExportBatch = { batch, fmt -> viewModel.exportBatch(batch, fmt) },
+                            onCancelBatch = { viewModel.cancelBatch(it) },
                             onOpenProduct = { pid ->
                                 viewModel.selectProduct(pid)
                                 navController.navigate("product_detail/$pid")
@@ -310,7 +317,9 @@ private fun AuthenticatedAppShell(
                             onOpenBrands = { navigateTop(ROUTE_BRANDS) },
                             onOpenEngines = { navigateTop(ROUTE_ENGINES) },
                             onOpenZeroResults = { navigateTop(ROUTE_ZERO_RESULTS) },
-                            onSignOut = { signOutUser(credentialManager, scope) }
+                            onSignOut = { viewModel.clearSnackbar() },
+                            backendEndpoint = viewModel.backendEndpoint.collectAsStateWithLifecycle().value,
+                            onSaveBackend = { endpoint, token -> viewModel.updateBackendConnection(endpoint, token) }
                         )
                     }
 
@@ -331,7 +340,10 @@ private fun AuthenticatedAppShell(
                             onApproveCandidate = { p, c -> viewModel.approveCandidate(p, c) },
                             onRejectCandidate = { pId, cId -> viewModel.rejectCandidate(pId, cId) },
                             onDownloadCandidate = { pId, c -> viewModel.downloadCandidateLocally(pId, c) },
-                            onGenerateStudio = { p, preset -> viewModel.generateCreativeStudioImage(p, preset) }
+                            onGenerateStudio = { p, preset -> viewModel.generateCreativeStudioImage(p, preset) },
+                            onSaveIdentity = { viewModel.saveManualIdentity(it) },
+                            onReadBarcode = { viewModel.readBarcode(it) },
+                            onShareStudio = { viewModel.shareStudio(it) }
                         )
                     }
                 }

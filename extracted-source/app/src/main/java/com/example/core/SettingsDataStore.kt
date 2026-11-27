@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
 private val Context.mhvieDataStore: DataStore<Preferences> by preferencesDataStore(name = "mhvie_settings")
 
 data class EngineSettings(
+    val brandProfile: String = "makeup_house",
     val minMatchScore: Double = 0.65,
     val minAestheticScore: Double = 0.50,
     val defaultTargetImages: Int = 5,
@@ -27,6 +28,7 @@ data class EngineSettings(
 
 class SettingsDataStore(private val context: Context) {
     private object Keys {
+        val BRAND_PROFILE = stringPreferencesKey("brand_profile")
         val MIN_MATCH = doublePreferencesKey("min_match_score")
         val MIN_AESTHETIC = doublePreferencesKey("min_aesthetic_score")
         val TARGET_IMAGES = intPreferencesKey("default_target_images")
@@ -39,6 +41,7 @@ class SettingsDataStore(private val context: Context) {
 
     val settingsFlow: Flow<EngineSettings> = context.mhvieDataStore.data.map { prefs ->
         EngineSettings(
+            brandProfile = prefs[Keys.BRAND_PROFILE] ?: "makeup_house",
             minMatchScore = prefs[Keys.MIN_MATCH] ?: 0.65,
             minAestheticScore = prefs[Keys.MIN_AESTHETIC] ?: 0.50,
             defaultTargetImages = prefs[Keys.TARGET_IMAGES] ?: 5,
@@ -53,6 +56,7 @@ class SettingsDataStore(private val context: Context) {
     suspend fun updateSettings(transform: (EngineSettings) -> EngineSettings) {
         context.mhvieDataStore.edit { prefs ->
             val current = EngineSettings(
+                brandProfile = prefs[Keys.BRAND_PROFILE] ?: "makeup_house",
                 minMatchScore = prefs[Keys.MIN_MATCH] ?: 0.65,
                 minAestheticScore = prefs[Keys.MIN_AESTHETIC] ?: 0.50,
                 defaultTargetImages = prefs[Keys.TARGET_IMAGES] ?: 5,
@@ -63,6 +67,7 @@ class SettingsDataStore(private val context: Context) {
                 autoStopOnSufficientImages = prefs[Keys.AUTO_STOP] ?: true
             )
             val updated = transform(current)
+            prefs[Keys.BRAND_PROFILE] = updated.brandProfile.takeIf { it in setOf("makeup_house", "unwan_al_atr") } ?: "makeup_house"
             prefs[Keys.MIN_MATCH] = updated.minMatchScore.coerceIn(0.3, 0.95)
             prefs[Keys.MIN_AESTHETIC] = updated.minAestheticScore.coerceIn(0.2, 0.95)
             prefs[Keys.TARGET_IMAGES] = updated.defaultTargetImages.coerceIn(1, 20)
