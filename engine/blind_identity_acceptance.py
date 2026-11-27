@@ -18,9 +18,14 @@ def main():
     if not isinstance(rows,list) or not 1<=len(rows)<=100:
         raise ValueError('INVALID_MANIFEST')
     if a.index is not None and not 1<=a.index<=len(rows): raise ValueError('INVALID_INDEX')
-    print('Loading model',flush=True)
-    model=QwenIdentity(a.model,max_visual_tokens=a.visual_tokens,max_new_tokens=a.new_tokens)
-    print('Model loaded',flush=True)
+    model=None
+    def visual(image):
+        nonlocal model
+        if model is None:
+            print('Loading model',flush=True)
+            model=QwenIdentity(a.model,max_visual_tokens=a.visual_tokens,max_new_tokens=a.new_tokens)
+            print('Model loaded',flush=True)
+        return model.identify(image)
     reader=None
     if a.ocr:
         from paddleocr import PaddleOCR
@@ -42,16 +47,23 @@ def main():
             if hashlib.sha256(path.read_bytes()).hexdigest()!=row['sha256']: raise ValueError('HASH_MISMATCH')
             with Image.open(path) as im:
                 if im.width*im.height>25000000: raise ValueError('PIXEL_LIMIT')
-                result=model.identify(im.convert('RGB'))
+                image=im.convert('RGB')
+            result={}
             if reader is not None:
                 ocr_start=time.monotonic()
                 try:
                     lines=read_ocr(path,reader)
+                    from .adaptive_identity import identify_adaptive
+                    ocr_elapsed=time.monotonic()-ocr_start
+                    result=identify_adaptive(lines,lambda: visual(image))
                     result['ocr_lines']=lines
-                    result['fusion']=fuse(result.get('fields',{}),lines)
                 except Exception as exc:
                     result['ocr_error']=str(exc)
-                result['ocr_seconds']=time.monotonic()-ocr_start
+                result['ocr_seconds']=ocr_elapsed if 'ocr_lines' in result else time.monotonic()-ocr_start
+                if 'ocr_error' in result:
+                    raise RuntimeError(result['ocr_error'])
+            else:
+                result=visual(image)
         except Exception as exc:
             result={'status':'FAILED','error':str(exc)}
         results.append(dict(index=i,elapsed_seconds=time.monotonic()-start,**result))
