@@ -11,6 +11,7 @@ def main():
     p.add_argument('--index',type=int)
     p.add_argument('--visual-tokens',type=int,default=384)
     p.add_argument('--new-tokens',type=int,default=128)
+    p.add_argument('--ocr',action='store_true')
     a=p.parse_args()
     manifest=Path(a.manifest).resolve()
     rows=json.loads(manifest.read_text())
@@ -20,6 +21,11 @@ def main():
     print('Loading model',flush=True)
     model=QwenIdentity(a.model,max_visual_tokens=a.visual_tokens,max_new_tokens=a.new_tokens)
     print('Model loaded',flush=True)
+    reader=None
+    if a.ocr:
+        from paddleocr import PaddleOCR
+        from .identity_fusion import fuse, read_ocr
+        reader=PaddleOCR(lang='en',use_doc_orientation_classify=False,use_doc_unwarping=False,use_textline_orientation=False,device='cpu')
     output=Path(a.output)
     output.parent.mkdir(parents=True,exist_ok=True)
     results=[]
@@ -37,11 +43,20 @@ def main():
             with Image.open(path) as im:
                 if im.width*im.height>25000000: raise ValueError('PIXEL_LIMIT')
                 result=model.identify(im.convert('RGB'))
+            if reader is not None:
+                ocr_start=time.monotonic()
+                try:
+                    lines=read_ocr(path,reader)
+                    result['ocr_lines']=lines
+                    result['fusion']=fuse(result.get('fields',{}),lines)
+                except Exception as exc:
+                    result['ocr_error']=str(exc)
+                result['ocr_seconds']=time.monotonic()-ocr_start
         except Exception as exc:
             result={'status':'FAILED','error':str(exc)}
         results.append(dict(index=i,elapsed_seconds=time.monotonic()-start,**result))
         print(f'Image {i}: {result.get("status")} elapsed={time.monotonic()-start:.1f}s',flush=True)
         output.write_text(json.dumps({'human_validation':'PENDING','results':results},ensure_ascii=False,indent=2),encoding='utf-8')
-    if any(x['status']=='FAILED' or not x.get('fields') for x in results):
+    if any(x['status']=='FAILED' or not x.get('fields') or (a.ocr and (not x.get('ocr_lines') or 'fusion' not in x)) for x in results):
         raise SystemExit('IDENTITY_GATE_FAILED')
 if __name__=='__main__': main()
