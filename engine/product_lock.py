@@ -19,16 +19,14 @@ def prepare_mask(source,output,segmenter,threshold=128,padding=0):
     with Image.open(source) as im:
         if im.width*im.height>25000000: raise ValueError('PIXEL_LIMIT')
         image=ImageOps.exif_transpose(im).convert('RGB')
-    mask=segmenter.segment(image)
-    if mask.size!=image.size: raise ValueError('MASK_SIZE_MISMATCH')
-    from .mask_quality import refine_mask
-    mask,quality=refine_mask(mask,threshold)
+    from .adaptive_mask import adaptive_mask
+    mask,quality=adaptive_mask(image,segmenter,threshold)
     if padding: mask=mask.filter(ImageFilter.MaxFilter(2*padding+1))
     coverage=mask.histogram()[255]/(mask.width*mask.height)
     if not .01<=coverage<=.95: raise ValueError('MASK_COVERAGE_REVIEW_REQUIRED')
     output.parent.mkdir(parents=True,exist_ok=True)
     with output.open('xb') as f: mask.save(f,format='PNG')
-    return {'quality':quality,'coverage':coverage,'status':'MASK_REVIEW_REQUIRED','mask_verified':False,'sha256':hashlib.sha256(output.read_bytes()).hexdigest()}
+    return {'quality':quality,'source_size':list(image.size),'coverage':coverage,'status':'MASK_REVIEW_REQUIRED','mask_verified':False,'sha256':hashlib.sha256(output.read_bytes()).hexdigest()}
 
 def verify_pixels(source,edited,mask):
     with Image.open(source) as im: a=ImageOps.exif_transpose(im).convert('RGB')
