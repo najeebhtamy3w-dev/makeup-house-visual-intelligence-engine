@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "status": "PROVISIONAL_PENDING_ACCEPTANCE",
+  "models": [
+    {
+      "id": "ocr",
+      "provider": "PaddleOCR",
+      "version": "3.0.3",
+      "runtime": "CPU",
+      "weights": "operator configured/cache",
+      "license_review": "pending"
+    },
+    {
+      "id": "vision",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "1b989f2c63999d7344135894d3cfa8f494116743",
+      "env": "MHVIE_VISION_MODEL",
+      "license_review": "pending"
+    },
+    {
+      "id": "clip",
+      "architecture": "ViT-L-14",
+      "env": "MHVIE_CLIP_WEIGHTS",
+      "license_review": "pending"
+    },
+    {
+      "id": "aesthetic",
+      "env": "MHVIE_AESTHETIC_WEIGHTS",
+      "hash_env": "MHVIE_AESTHETIC_SHA256",
+      "license_review": "pending"
+    },
+    {
+      "id": "segmentation",
+      "model": "birefnet-general",
+      "license_review": "pending"
+    },
+    {
+      "id": "qwen-edit",
+      "repository": "Qwen/Qwen-Image-Edit-2511",
+      "runtime": "CUDA",
+      "acceptance": "pending",
+      "license_review": "pending"
+    },
+    {
+      "id": "flux-edit",
+      "repository": "black-forest-labs/FLUX.2-klein-4B",
+      "runtime": "CUDA",
+      "acceptance": "pending",
+      "license_review": "pending"
+    }
+  ]
+}
