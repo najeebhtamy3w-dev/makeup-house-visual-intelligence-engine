@@ -12,11 +12,13 @@ from PIL import Image
 from fastapi import FastAPI, HTTPException, Header, Request, Depends
 from pydantic import BaseModel, Field
 from typing import Literal
+from .barcode_priority import canonical_gtin
 
 class Job(BaseModel):
-    kind: Literal['discover','studio','identify','barcode','photo_discover']
+    kind: Literal['discover','studio','identify','barcode','photo_discover','smart_discover']
     formats: list[Literal['square','story','portrait']]=Field(default_factory=list,max_length=3)
     brand: Literal['makeup_house','unwan_al_atr']|None=None
+    barcode: str|None=Field(default=None,max_length=14)
     query: str|None=Field(default=None,max_length=240)
     purpose: Literal['catalog','marketing']='catalog'
     input: str|None=Field(default=None,max_length=70)
@@ -70,6 +72,9 @@ def create_app(runtime,root,token):
                 if not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|jpeg|webp)',job.input): raise HTTPException(422,'INVALID_INPUT_ID')
                 candidate=root/'inputs'/job.input
                 if candidate.is_symlink() or not candidate.is_file(): raise HTTPException(404,'INPUT_NOT_FOUND')
+            if job.kind=='smart_discover':
+                if job.barcode is not None and canonical_gtin(job.barcode) is None: raise HTTPException(422,'INVALID_GTIN')
+                if not (job.barcode or job.input or (job.query or '').strip()): raise HTTPException(422,'ADDITIONAL_INPUT_REQUIRED')
             if job.kind=='discover' and not (job.query or '').strip(): raise HTTPException(422,'QUERY_REQUIRED')
             if job.kind in ('identify','barcode','photo_discover') and not job.input: raise HTTPException(422,'INPUT_REQUIRED')
             if job.kind=='studio' and not (job.input and (job.prompt or '').strip()): raise HTTPException(422,'STUDIO_INPUT_REQUIRED')
