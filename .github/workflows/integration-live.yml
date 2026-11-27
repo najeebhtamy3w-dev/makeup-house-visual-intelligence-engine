@@ -4,17 +4,22 @@ on:
     branches: ['feature/v015-search-integration']
     paths: ['engine/integration_live.py', 'engine/integration_core.py', 'engine/priority_discovery.py', 'engine/search_discovery.py', '.github/workflows/integration-live.yml']
   workflow_dispatch:
+    inputs:
+      visual:
+        description: Run real OpenCLIP and LAION inference
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   live:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
       - run: python -m pip install Pillow
       - run: python -m unittest discover -s tests -p test_integration_core.py -v
       - name: Start temporary SearXNG
@@ -34,9 +39,21 @@ jobs:
             sleep 2
           done
           exit 1
+      - name: Restore proven visual model configuration
+        if: inputs.visual == true
+        run: |
+          python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install open_clip_torch==2.32.0
+          git clone https://github.com/LAION-AI/aesthetic-predictor.git upstream-aesthetic
+          git -C upstream-aesthetic checkout 6d122adad522
+          python -c "import open_clip,pathlib; pathlib.Path('clip-path.txt').write_text(open_clip.download_pretrained(open_clip.get_pretrained_cfg('ViT-L-14','openai')))"
       - name: Real discovery acceptance
         run: |
-          timeout 480 python -u -m engine.integration_live --endpoint http://127.0.0.1:8080 --host instagram.com --host cdninstagram.com --host fbcdn.net --host cerave.com --host purador.com --host maybelline.com --host cdn.shopify.com
+          args=()
+          if [ -f clip-path.txt ]; then
+            args+=(--clip-weights "$(cat clip-path.txt)" --aesthetic-weights upstream-aesthetic/sa_0_4_vit_l_14_linear.pth --aesthetic-sha256 "$(sha256sum upstream-aesthetic/sa_0_4_vit_l_14_linear.pth | cut -d' ' -f1)")
+          fi
+          timeout 900 python -u -m engine.integration_live --endpoint http://127.0.0.1:8080 --host instagram.com --host cdninstagram.com --host fbcdn.net --host cerave.com --host purador.com --host maybelline.com --host cdn.shopify.com "${args[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
