@@ -1,0 +1,41 @@
+name: MH-VIE aesthetic inference
+on:
+  push:
+    branches: [development]
+    paths: ['engine/aesthetic.py','engine/aesthetic_benchmark.py','.github/workflows/aesthetic-benchmark.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  aesthetic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OMP_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install open_clip_torch==2.32.0 Pillow
+      - run: |
+          mkdir -p aesthetic-results
+          git clone https://github.com/LAION-AI/aesthetic-predictor.git upstream-aesthetic
+          git -C upstream-aesthetic checkout 6d122adad522
+          git -C upstream-aesthetic rev-parse HEAD > aesthetic-results/upstream-revision.txt
+          cp upstream-aesthetic/LICENSE aesthetic-results/LICENSE-LAION
+          sha256sum upstream-aesthetic/sa_0_4_vit_l_14_linear.pth > aesthetic-results/head.sha256
+          python - <<'PY'
+          import open_clip, pathlib
+          path=open_clip.download_pretrained(open_clip.get_pretrained_cfg('ViT-L-14','openai'))
+          pathlib.Path('clip-path.txt').write_text(path)
+          PY
+      - run: |
+          set -o pipefail
+          python -m engine.aesthetic_benchmark "$(cat clip-path.txt)" upstream-aesthetic/sa_0_4_vit_l_14_linear.pth "$(cut -d' ' -f1 aesthetic-results/head.sha256)" 2>&1 | tee aesthetic-results/run.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aesthetic-report
+          path: aesthetic-results/
