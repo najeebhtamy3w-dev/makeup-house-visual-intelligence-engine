@@ -9,6 +9,7 @@ from .safe_download import inspect_image, validate_url
 from .visual_quality import signals, near_duplicate
 from .sku_verification import verify
 from .ranking import rank_candidates
+from .search_strategy import queries, coverage, complete
 
 def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcode=None, ocr=None, encoder=None, classifier=None, max_pages=8, max_images=40, output_dir=None, identity_model=None, aesthetic=None):
     evidence=collect(reference,fields,barcode,ocr,identity_model)
@@ -73,7 +74,7 @@ def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcod
                     report['images'].append(row)
             except Exception as exc:
                 report['pages'].append({'url':page,'error':str(exc)})
-    for query in (name,name+' product packaging',name+' official product photo'):
+    for query in queries(name):
         if endpoint:
             for result in discover(query,endpoint,limit=12):
                 report['discovery'].append(dict(query=query,**result))
@@ -85,8 +86,9 @@ def run_product(name, reference, fields, client, endpoint=None, seeds=(), barcod
                     if hit['url'] not in pages:
                         pages.append(hit['url'])
         process()
-        if not endpoint or len(visited)>=max_pages or attempted>=max_images or sum(x.get('status')=='NEEDS_MANUAL_REVIEW' for x in report['images'])>=5:
+        if not endpoint or len(visited)>=max_pages or attempted>=max_images or complete(report['images']):
             break
     report['status']='REVIEW_REQUIRED' if any(x.get('status')=='NEEDS_MANUAL_REVIEW' for x in report['images']) else 'NO_REVIEW_CANDIDATES'
+    report['category_coverage']=sorted(coverage(report['images']))
     report['ranked_candidates']=rank_candidates(report['images'])
     return report
