@@ -29,12 +29,19 @@ def priority_discover(query,search,hosts,output,**kwargs):
             # Keep artifacts in the existing flat job directory for API retrieval.
             result=discover(query,lambda _:hits,hosts,output,**kwargs)
             stages.append({"stage":name,"status":result["status"],"errors":result["errors"],"count":len(result["candidates"]),"search_diagnostics":diagnostics,"filtered_hits":len(hits)})
-            candidates.extend(result["candidates"])
+            candidates.extend({**row,'discovery_stage':name} for row in result['candidates'])
         except Exception as exc:
             stages.append({"stage":name,"status":"FAILED","error":type(exc).__name__,"detail":str(exc)[:240]})
         # Only stop on strong SKU evidence, never on raw search hits.
         if any(suitable_for_review(c) for c in candidates): break
-    unique={c["sha256"]:c for c in reversed(candidates)}
+    unique={}
+    for c in candidates:
+        digest=c['sha256']
+        if digest not in unique:
+            unique[digest]={**c,'source_evidence':[]}
+        unique[digest]['source_evidence'].append({'stage':c['discovery_stage'],'source':c.get('source'),'url':c.get('url')})
+        if suitable_for_review(c) and not suitable_for_review(unique[digest]):
+            unique[digest]={**c,'source_evidence':unique[digest]['source_evidence']}
     from .image_selection import rank_candidates
     rows=rank_candidates(list(unique.values()),kwargs.get("purpose","catalog"))
     return {"schema_version":"1.0","status":"REVIEW_REQUIRED" if rows else "NO_CANDIDATES","query":query,"candidates":rows,"stages":stages,"errors":[e for s in stages for e in s.get("errors",[])],"suitable_candidates":sum(suitable_for_review(c) for c in rows),"creative_fallback_suggested":not any(suitable_for_review(c) for c in rows),"creative_edit_available":True,"creative_fallback_requires_user_choice":True,"publication_allowed":False}
