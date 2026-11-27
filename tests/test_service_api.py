@@ -14,6 +14,24 @@ from engine.batch_runtime import BatchRuntime
 
 @unittest.skipIf(TestClient is None,'Service dependencies required')
 class ApiTests(unittest.TestCase):
+    def test_barcode_job_exports_review_metadata_without_fake_identity(self):
+        import zipfile
+        from engine.job_handler import JobHandler
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);runtime=BatchRuntime(root/'db.sqlite')
+            client=TestClient(create_app(runtime,root,'x'*32));headers={'Authorization':'Bearer '+'x'*32}
+            buffer=io.BytesIO();Image.new('RGB',(64,64),'white').save(buffer,format='PNG')
+            source=client.post('/v1/inputs',headers=headers,content=buffer.getvalue()).json()['input']
+            batch=client.post('/v1/batches',headers=headers,json={'jobs':[{'kind':'barcode','input':source}]}).json()['batch_id']
+            job=runtime.run_next(JobHandler(root,lambda _:[],()))
+            response=client.get('/v1/batches/'+batch+'/jobs/'+job+'/export',headers=headers)
+            self.assertEqual(response.status_code,200)
+            with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                manifest=json.loads(archive.read('manifest.json'))
+            self.assertEqual(manifest['report']['barcodes'],[])
+            self.assertFalse(manifest['report']['identity_verified'])
+            self.assertFalse(manifest['publication_allowed'])
+
     def test_auth_and_batch(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)

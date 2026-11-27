@@ -132,7 +132,7 @@ class JobHandler:
             with artifact.open('rb') as stream:
                 for chunk in iter(lambda:stream.read(1048576),b''): digest.update(chunk)
             result['artifacts'][artifact.name]={'sha256':digest.hexdigest(),'bytes':artifact.stat().st_size}
-        if kind in ('direct_edit','locked_scene','studio','discover','photo_discover','smart_discover'):
+        if kind in ('direct_edit','locked_scene','studio','discover','photo_discover','smart_discover','barcode','identify','prepare_mask','correct_mask'):
             archive=output.parent/(output.name+'.zip')
             export_review(output,archive,result)
             result['review_archive']=archive.name
