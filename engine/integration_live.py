@@ -3,7 +3,7 @@ import argparse
 import json
 import time
 from pathlib import Path
-from .integration_core import discover
+from .priority_discovery import priority_discover as discover
 from .search_discovery import SearxDiscovery
 
 def main():
@@ -15,12 +15,12 @@ def main():
     root=Path(a.output)
     root.mkdir(parents=True,exist_ok=True)
     search=SearxDiscovery(a.endpoint)
-    queries=['CeraVe Hydrating Facial Cleanser site:cerave.com','Pura Dor Vitamin C Serum site:purador.com','Maybelline Sky High Mascara site:maybelline.com']
+    queries=['CeraVe Hydrating Facial Cleanser','Pura D\'or Vitamin C Serum','Maybelline Sky High Mascara']
     reports=[]
     for i,q in enumerate(queries):
         start=time.monotonic()
         try:
-            result=discover(q,search,a.host,root/str(i),max_pages=3,max_images=10)
+            result=discover(q,search,a.host,root/str(i),max_pages=5,max_images=20)
         except Exception as exc:
             result={'query':q,'status':'FAILED','error':type(exc).__name__,'candidates':[]}
         result['elapsed_seconds']=time.monotonic()-start
