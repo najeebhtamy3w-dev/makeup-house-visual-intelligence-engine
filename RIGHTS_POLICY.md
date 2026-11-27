@@ -1,0 +1,2 @@
+# Rights policy
+All discovered and generated assets remain unverified and private-review-only. Source URL, retrieval provenance, asset hash, owner, license terms and permission evidence must be recorded before commercial approval. Missing evidence blocks publication. Model licenses are separate from image rights. No automatic publication is implemented. The model registry is provisional; no license clearance is claimed.
