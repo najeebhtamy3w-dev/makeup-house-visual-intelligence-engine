@@ -1,0 +1,28 @@
+name: MH-VIE batch acceptance
+on:
+  push:
+    branches: [development]
+    paths: ['engine/batch*.py','engine/run_batch.py','engine/pipeline.py','engine/studio*.py','.github/workflows/batch-acceptance.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        count: [3,10,30,100]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install Pillow numpy
+      - run: python -m engine.batch_acceptance --count ${{ matrix.count }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: batch-fixture-${{ matrix.count }}
+          path: batch-results/acceptance.json
