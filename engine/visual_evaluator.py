@@ -31,6 +31,14 @@ class VisualEvaluator:
         self.labels=list(PROMPTS)
         self.text_features=encoder.texts(list(PROMPTS.values()))
         self.reference=encoder.encode(reference) if reference is not None else None
+    def for_reference(self,path):
+        from copy import copy
+        from PIL import ImageOps
+        bound=copy(self)
+        with Image.open(path) as source:
+            if source.width*source.height>25000000: raise ValueError('PIXEL_LIMIT')
+            bound.reference=self.encoder.encode(ImageOps.exif_transpose(source).convert('RGB'))
+        return bound
     def __call__(self,path,query):
         import torch
         with Image.open(path) as source:
