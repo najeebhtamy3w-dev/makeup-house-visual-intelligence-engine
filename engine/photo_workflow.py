@@ -9,7 +9,7 @@ def read_barcodes(path):
         codes=zxingcpp.read_barcodes(ImageOps.exif_transpose(im).convert('RGB'))
     return [{'text':c.text[:200],'format':str(c.format)} for c in codes][:20]
 
-def photo_discovery(path,identity,search,hosts,output,evaluator=None,purpose='catalog',barcode_reader=read_barcodes):
+def photo_discovery(path,identity,search,hosts,output,evaluator=None,purpose='catalog',barcode_reader=read_barcodes,ocr_reader=None):
     result=identity(path)
     codes=barcode_reader(path)
     query=search_name(result.get('fields',{}))
@@ -19,5 +19,5 @@ def photo_discovery(path,identity,search,hosts,output,evaluator=None,purpose='ca
         return {'status':'IDENTITY_REVIEW_REQUIRED','identity':result,'barcodes':codes,'publication_allowed':False}
     if evaluator is not None and hasattr(evaluator,'for_reference'):
         evaluator=evaluator.for_reference(path)
-    found=discover(query[:240],search,hosts,output,visual_evaluator=evaluator,purpose=purpose,expected_fields=result.get('fields',{}))
+    found=discover(query[:240],search,hosts,output,visual_evaluator=evaluator,purpose=purpose,expected_fields=result.get('fields',{}),ocr_reader=ocr_reader)
     return {**found,'identity':result,'barcodes':codes,'query_verified':False,'publication_allowed':False}
