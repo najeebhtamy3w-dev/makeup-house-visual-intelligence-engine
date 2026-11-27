@@ -1,8 +1,8 @@
-name: MH-VIE V0.16 live integration
+name: MH-VIE V0.26 recovered search integration
 on:
   push:
     branches: ['feature/v015-search-integration']
-    paths: ['engine/integration_live.py', 'engine/integration_core.py', '.github/workflows/integration-live.yml']
+    paths: ['engine/integration_live.py', 'engine/integration_core.py', 'engine/priority_discovery.py', 'engine/search_discovery.py', '.github/workflows/integration-live.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -36,7 +36,7 @@ jobs:
           exit 1
       - name: Real discovery acceptance
         run: |
-          timeout 480 python -u -m engine.integration_live --endpoint http://127.0.0.1:8080 --host cerave.com --host purador.com --host maybelline.com --host cdn.shopify.com
+          timeout 480 python -u -m engine.integration_live --endpoint http://127.0.0.1:8080 --host instagram.com --host cdninstagram.com --host fbcdn.net --host cerave.com --host purador.com --host maybelline.com --host cdn.shopify.com
       - uses: actions/upload-artifact@v4
         if: always()
         with:
