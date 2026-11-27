@@ -27,7 +27,7 @@ def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, d
             # Page-level evidence cannot establish the identity of every image.
             page_conflict=bool(comparisons) and all(x['status']=='CONFLICT' for x in comparisons)
         except Exception as exc:
-            errors.append({'source':page,'error':type(exc).__name__})
+            errors.append({'source':page,'error':type(exc).__name__,'detail':str(exc)[:240]})
             continue
         for candidate in candidates:
             if attempts>=max_images: break
@@ -44,14 +44,14 @@ def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, d
                 near=next((r['sha256'] for r in rows if distance(r['quality']['dhash'],quality['dhash'])<=4),None)
                 rows.append({**info,'url':url,'source':final,'file':path.name,'quality':quality,'page_sku_evidence':comparisons,'page_sku_conflict':page_conflict,'possible_duplicate_of':near,'identity_verified':False,'publication_allowed':False})
             except Exception as exc:
-                errors.append({'source':candidate['url'],'error':type(exc).__name__})
+                errors.append({'source':candidate['url'],'error':type(exc).__name__,'detail':str(exc)[:240]})
         if attempts>=max_images: break
     if visual_evaluator is not None:
         for row in rows:
             try:
                 row['visual_evidence']=visual_evaluator(output/row['file'],query)
             except Exception as exc:
-                errors.append({'source':row['url'],'error':type(exc).__name__,'stage':'VISUAL_EVALUATION'})
+                errors.append({'source':row['url'],'error':type(exc).__name__,'detail':str(exc)[:240],'stage':'VISUAL_EVALUATION'})
     for row in rows:
         if row['page_sku_conflict']:
             row.setdefault('visual_evidence',{})['identity_status']='CONFLICT'
