@@ -1,7 +1,7 @@
 """Independent scene generation with exact original product pixels."""
 from pathlib import Path
 import hashlib
-from PIL import Image, ImageOps, ImageChops
+from PIL import Image, ImageOps, ImageChops, ImageDraw, ImageFilter
 
 def compose_scene(source, mask, editor, prompt, output, *, mask_reviewed=False, seed=42, size=1024):
     if not mask_reviewed:
@@ -34,10 +34,16 @@ def compose_scene(source, mask, editor, prompt, output, *, mask_reviewed=False, 
     scene=scene.resize((canvas_w,canvas_h),Image.Resampling.LANCZOS)
     x=(canvas_w-w)//2
     y=(canvas_h-h)*2//3
+    shadow=Image.new("L",scene.size)
+    draw=ImageDraw.Draw(shadow)
+    depth=max(4,min(40,h//30))
+    draw.ellipse((x,y+h-depth,x+w,y+h+depth),fill=85)
+    shadow=shadow.filter(ImageFilter.GaussianBlur(max(2,depth//2)))
+    scene=Image.composite(Image.new("RGB",scene.size,(20,15,10)),scene,shadow)
     scene.paste(product,(x,y),alpha)
     diff=ImageChops.difference(product,scene.crop((x,y,x+w,y+h)))
     if Image.composite(diff,Image.new("RGB",product.size),alpha).getbbox():
         raise RuntimeError("PROTECTED_PIXELS_CHANGED")
     output.parent.mkdir(parents=True,exist_ok=True)
     with output.open("xb") as f: scene.save(f,format="PNG")
-    return {"status":"REVIEW_REQUIRED","protected_pixels_preserved":True,"product_rescaled":False,"mask_reviewed":True,"identity_verified":False,"publication_allowed":False,"placement":[x,y,w,h],"output_sha256":hashlib.sha256(output.read_bytes()).hexdigest()}
+    return {"status":"REVIEW_REQUIRED","protected_pixels_preserved":True,"product_rescaled":False,"mask_reviewed":True,"identity_verified":False,"publication_allowed":False,"source_bounds":list(bounds),"placement":[x,y,w,h],"output_sha256":hashlib.sha256(output.read_bytes()).hexdigest()}
