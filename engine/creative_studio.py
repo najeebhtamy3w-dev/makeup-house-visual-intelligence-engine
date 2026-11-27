@@ -15,10 +15,19 @@ class LocalEditor:
         else:
             from diffusers import Flux2KleinPipeline
             cls=Flux2KleinPipeline
-        if not torch.cuda.is_bf16_supported(): raise RuntimeError('BF16_REQUIRED_FOR_THIS_PROFILE')
-        self.pipeline=cls.from_pretrained(model_dir,torch_dtype=torch.bfloat16,local_files_only=True)
+        native_bf16=torch.cuda.get_device_capability()[0]>=8
+        if backend=='qwen' and not native_bf16: raise RuntimeError('NATIVE_BF16_REQUIRED_FOR_QWEN_PROFILE')
+        dtype=torch.bfloat16 if native_bf16 else torch.float16
+        self.pipeline=cls.from_pretrained(model_dir,torch_dtype=dtype,local_files_only=True)
         self.pipeline.enable_model_cpu_offload()
+        self.pipeline.vae.enable_slicing()
+        self.pipeline.vae.enable_tiling()
         self.backend=backend
+    def background(self,prompt,width=768,height=768,seed=42):
+        import torch
+        if self.backend!='flux': raise ValueError('FLUX_BACKGROUND_REQUIRED')
+        if not (256<=width<=1024 and 256<=height<=1024 and width%16==0 and height%16==0): raise ValueError('INVALID_DIMENSIONS')
+        return self.pipeline(prompt=prompt,width=width,height=height,num_inference_steps=4,guidance_scale=1.0,generator=torch.Generator(device='cpu').manual_seed(seed)).images[0]
     def edit(self,image,prompt,seed=42):
         import torch
         # Bound generation cost independently of original product resolution.
