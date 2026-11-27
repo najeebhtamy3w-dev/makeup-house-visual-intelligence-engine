@@ -37,6 +37,7 @@ def main():
                 aesthetic=AestheticPredictor(encoder,os.environ['MHVIE_AESTHETIC_WEIGHTS'],os.environ['MHVIE_AESTHETIC_SHA256'])
             evaluator=VisualEvaluator(encoder,aesthetic)
         identity=None
+        reader=None
         if os.environ.get('MHVIE_VISION_MODEL'):
             from paddleocr import PaddleOCR
             from .multimodal import QwenIdentity
@@ -47,7 +48,7 @@ def main():
             model=LazyVision(lambda: QwenIdentity(os.environ['MHVIE_VISION_MODEL'],max_visual_tokens=384,max_new_tokens=128))
             external=os.environ.get('MHVIE_IDENTITY_EXTERNAL_SEARCH')=='1'
             identity=IdentityService(reader,model,SearxDiscovery(os.environ['MHVIE_SEARX']) if external else None,Downloader(os.environ['MHVIE_HOSTS'].split(',')) if external else None)
-        handler=JobHandler(root,SearxDiscovery(os.environ['MHVIE_SEARX']),os.environ['MHVIE_HOSTS'].split(','),editor,segmenter,evaluator,identity)
+        handler=JobHandler(root,SearxDiscovery(os.environ['MHVIE_SEARX']),os.environ['MHVIE_HOSTS'].split(','),editor,segmenter,evaluator,identity,reader)
         while True:
             if runtime.run_next(handler) is None: time.sleep(1)
 
