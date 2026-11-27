@@ -2,6 +2,9 @@
 from pathlib import Path
 import re
 from .integration_core import discover
+from .multi_input import resolve_input
+from .catalog_evidence import collect_catalog
+from .safe_download import Downloader
 from .photo_workflow import photo_discovery,read_barcodes
 from .campaign_formats import render_formats
 from .creative_studio import protected_edit
@@ -34,6 +37,16 @@ class JobHandler:
             result=discover(payload['query'],self.search,self.hosts,output,visual_evaluator=self.visual_evaluator,purpose=payload.get('purpose','catalog'))
         elif kind=='barcode':
             result={'barcodes':read_barcodes(self.input(payload['input'])),'identity_verified':False}
+        elif kind=='smart_discover':
+            path=self.input(payload['input']) if payload.get('input') else None
+            def lookup(code):
+                return collect_catalog(list(self.search(code))[:3],Downloader(self.hosts))['evidence']
+            def visual(path):
+                if self.identity_service is None: raise RuntimeError('IDENTITY_UNAVAILABLE')
+                return photo_discovery(path,self.identity_service,self.search,self.hosts,output,self.visual_evaluator,payload.get('purpose','catalog'))
+            def named(query):
+                return discover(query[:240],self.search,self.hosts,output,visual_evaluator=self.visual_evaluator,purpose=payload.get('purpose','catalog'))
+            result=resolve_input(payload.get('barcode'),payload.get('query'),path,lookup,visual,named)
         elif kind=='photo_discover':
             if self.identity_service is None: raise RuntimeError('IDENTITY_UNAVAILABLE')
             result=photo_discovery(self.input(payload['input']),self.identity_service,self.search,self.hosts,output,self.visual_evaluator,payload.get('purpose','catalog'))
@@ -55,7 +68,7 @@ class JobHandler:
         result['artifact_directory']=str(output.relative_to(self.root))
         result['publication_allowed']=False
         result['brand']=payload.get('brand')
-        if kind in ('studio','discover','photo_discover'):
+        if kind in ('studio','discover','photo_discover','smart_discover'):
             archive=output.parent/(output.name+'.zip')
             export_review(output,archive,result)
             result['review_archive']=archive.name
