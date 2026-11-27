@@ -13,3 +13,16 @@ class FusionTests(unittest.TestCase):
     def test_low_confidence(self):
         r=fuse({'brand':'YC'},[{'text':'YC','score':.3}])
         self.assertEqual(r['fields']['brand']['status'],'UNSUPPORTED')
+
+    def test_noisy_unit(self):
+        r=fuse({'size':'140ml'},[{'text':'1000 m1','score':.95}])
+        self.assertTrue(r['size_conflict'])
+        self.assertFalse(r['verified'])
+    def test_routing(self):
+        from engine.identity_fusion import route
+        self.assertEqual(route([])['route'],'QWEN_REQUIRED')
+        self.assertEqual(route([{'text':x,'score':.95} for x in ['Anua','Serum','30 ml']])['route'],'EXTERNAL_SEARCH_FIRST')
+    def test_fuzzy_not_verified(self):
+        r=fuse({'brand':'Vit Gold'},[{'text':'VEETgold','score':.95}])
+        self.assertGreater(r['fields']['brand']['approximate_match'],0)
+        self.assertFalse(r['verified'])
