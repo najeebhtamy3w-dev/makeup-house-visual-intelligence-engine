@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 from .integration_core import discover
 from .multi_input import resolve_input
+from .product_registry import ProductRegistry
 from .catalog_evidence import collect_catalog
 from .safe_download import Downloader
 from .photo_workflow import photo_discovery,read_barcodes
@@ -17,6 +18,8 @@ class JobHandler:
         self.identity_service=identity_service
         self.root=Path(root).resolve()
         self.search=search
+        self.root.mkdir(parents=True,exist_ok=True)
+        self.registry=ProductRegistry(self.root/'products.sqlite3')
         self.hosts=tuple(hosts)
         self.editor=editor
         self.segmenter=segmenter
@@ -40,6 +43,8 @@ class JobHandler:
         elif kind=='smart_discover':
             path=self.input(payload['input']) if payload.get('input') else None
             def lookup(code):
+                local=self.registry.lookup(code)
+                if local: return local
                 return collect_catalog(list(self.search(code))[:3],Downloader(self.hosts))['evidence']
             def visual(path):
                 if self.identity_service is None: raise RuntimeError('IDENTITY_UNAVAILABLE')
