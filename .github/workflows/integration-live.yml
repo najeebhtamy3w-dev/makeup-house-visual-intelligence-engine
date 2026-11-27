@@ -60,6 +60,11 @@ jobs:
             args+=(--require-instagram --clip-weights "$(cat clip-path.txt)" --aesthetic-weights upstream-aesthetic/sa_0_4_vit_l_14_linear.pth --aesthetic-sha256 "$(sha256sum upstream-aesthetic/sa_0_4_vit_l_14_linear.pth | cut -d' ' -f1)")
           fi
           timeout 900 python -u -m engine.integration_live --endpoint http://127.0.0.1:8080 --host instagram.com --host cdninstagram.com --host fbcdn.net --host cerave.com --host purador.com --host maybelline.com --host cdn.shopify.com "${args[@]}"
+      - name: Real candidate OCR on downloaded images
+        if: github.event_name == 'pull_request' || inputs.visual == true
+        run: |
+          python -m pip install 'paddlepaddle==3.0.0' 'paddleocr==3.0.3' 'paddlex[ocr]==3.0.3' 'langchain==0.3.27' 'langchain-community==0.3.27'
+          python -m engine.ocr_live_acceptance results-integration
       - uses: actions/upload-artifact@v4
         if: always()
         with:
