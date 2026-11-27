@@ -3,6 +3,8 @@ on:
   push:
     branches: [development, 'feature/v015-search-integration']
     paths: ['engine/**', 'tests/**', 'requirements-service.txt', '.github/workflows/engine-tests.yml']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
