@@ -9,6 +9,8 @@ from .vision_models import BarcodeReader, OCRReader, VisualEncoder
 from .classification import Classifier
 from .multimodal import QwenIdentity
 from .aesthetic import AestheticPredictor
+from .studio_job import prepare
+from .background import BackgroundRemover
 
 def main():
     p=argparse.ArgumentParser()
@@ -24,7 +26,11 @@ def main():
     p.add_argument('--aesthetic-clip')
     p.add_argument('--aesthetic-head')
     p.add_argument('--aesthetic-sha256')
+    p.add_argument('--studio',action='store_true')
+    p.add_argument('--remove-background',action='store_true')
     args=p.parse_args()
+    if args.remove_background and not args.studio:
+        p.error('--remove-background requires --studio')
     options=(args.aesthetic_clip,args.aesthetic_head,args.aesthetic_sha256)
     if any(options) and not all(options):
         p.error('All three aesthetic options are required together')
@@ -41,6 +47,11 @@ def main():
             raise ValueError('REFERENCE_PIXEL_LIMIT')
         report=run_product(args.name,im.convert('RGB'),{},Downloader(args.host),endpoint=os.environ.get('SEARXNG_ENDPOINT'),seeds=args.seed,barcode=BarcodeReader() if args.barcode else None,ocr=ocr,encoder=encoder,classifier=Classifier(encoder) if encoder else None,output_dir=output,identity_model=identity,aesthetic=aesthetic)
     output.mkdir(parents=True,exist_ok=True)
+    if args.studio:
+        try:
+            report['studio']=prepare(report,output,BackgroundRemover() if args.remove_background else None)
+        except Exception as exc:
+            report['studio']=[{'status':'STUDIO_FAILED','error':str(exc),'commercial_approved':False}]
     (output/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(report['status'])
 
