@@ -16,11 +16,19 @@ def parse_identity(raw):
 class QwenIdentity:
     def __init__(self,model_dir,device='cpu', max_visual_tokens=1024, max_new_tokens=256):
         import torch
-        from transformers import AutoProcessor,Qwen2_5_VLForConditionalGeneration
+        from transformers import AutoProcessor,AutoConfig
+        import os
         if not Path(model_dir).is_dir():
             raise FileNotFoundError('LOCAL_MODEL_REQUIRED')
+        config=AutoConfig.from_pretrained(model_dir,local_files_only=True)
+        if config.model_type=='qwen3_vl':
+            from transformers import Qwen3VLForConditionalGeneration as Model
+        elif config.model_type=='qwen2_5_vl' and os.environ.get('MHVIE_RESEARCH_ONLY')=='1':
+            from transformers import Qwen2_5_VLForConditionalGeneration as Model
+        else:
+            raise ValueError('VISION_MODEL_NOT_ALLOWED')
         self.processor=AutoProcessor.from_pretrained(model_dir,local_files_only=True,min_pixels=256*28*28,max_pixels=max_visual_tokens*28*28)
-        self.model=Qwen2_5_VLForConditionalGeneration.from_pretrained(model_dir,local_files_only=True,torch_dtype=torch.bfloat16 if device=='cpu' else torch.float16,low_cpu_mem_usage=True).to(device).eval()
+        self.model=Model.from_pretrained(model_dir,local_files_only=True,torch_dtype=torch.bfloat16 if device=='cpu' else torch.float16,low_cpu_mem_usage=True).to(device).eval()
         self.device=device
         self.max_new_tokens=max_new_tokens
 
