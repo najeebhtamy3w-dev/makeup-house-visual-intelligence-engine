@@ -1,7 +1,7 @@
 name: MH-VIE aesthetic inference
 on:
   push:
-    branches: [development]
+    branches: [development, 'feature/v015-search-integration']
     paths: ['engine/aesthetic.py','engine/aesthetic_benchmark.py','.github/workflows/aesthetic-benchmark.yml']
   workflow_dispatch:
 permissions:
@@ -34,6 +34,25 @@ jobs:
       - run: |
           set -o pipefail
           python -m engine.aesthetic_benchmark "$(cat clip-path.txt)" upstream-aesthetic/sa_0_4_vit_l_14_linear.pth "$(cut -d' ' -f1 aesthetic-results/head.sha256)" 2>&1 | tee aesthetic-results/run.log
+      - name: Integrated visual evaluator inference
+        run: |
+          python - <<'PY'
+          import json, math
+          from PIL import Image, ImageDraw
+          from pathlib import Path
+          from engine.visual_evaluator import LocalClip, VisualEvaluator
+          from engine.aesthetic import AestheticPredictor
+          encoder=LocalClip(Path('clip-path.txt').read_text().strip())
+          head=AestheticPredictor(encoder,'upstream-aesthetic/sa_0_4_vit_l_14_linear.pth',Path('aesthetic-results/head.sha256').read_text().split()[0])
+          image=Image.new('RGB',(512,512),'white')
+          ImageDraw.Draw(image).rectangle((180,80,330,440),fill='navy')
+          image.save('aesthetic-results/fixture.png')
+          result=VisualEvaluator(encoder,head,image)('aesthetic-results/fixture.png','cosmetic bottle')
+          assert math.isfinite(result['aesthetic_normalized'])
+          assert result['similarity_cosine']>0.99
+          assert result['verified'] is False
+          Path('aesthetic-results/integrated.json').write_text(json.dumps(result,indent=2))
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
