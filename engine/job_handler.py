@@ -10,6 +10,7 @@ from .photo_workflow import photo_discovery,read_barcodes
 from .campaign_formats import render_formats
 from .creative_studio import protected_edit
 from .locked_scene import compose_scene
+from .mask_review import correct_mask,preview_mask
 from .brand_profiles import campaign_prompt
 from .review_export import export_review
 from .product_lock import prepare_mask,verify_pixels
@@ -62,6 +63,9 @@ class JobHandler:
         elif kind=='prepare_mask':
             if self.segmenter is None: raise RuntimeError('SEGMENTER_UNAVAILABLE')
             result=prepare_mask(self.input(payload['input']),output/'mask.png',self.segmenter)
+            preview_mask(self.input(payload['input']),output/'mask.png',output/'preview.png')
+        elif kind=='correct_mask':
+            result=correct_mask(self.input(payload['input']),self.input(payload['mask_input']),output/'mask.png',payload['strokes'])
         elif kind=='locked_scene':
             if self.editor is None: raise RuntimeError('STUDIO_UNAVAILABLE')
             if payload.get('mask_reviewed') is not True: raise ValueError('HUMAN_MASK_REVIEW_REQUIRED')
