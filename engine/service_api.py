@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 class Job(BaseModel):
-    kind: Literal['discover','studio']
+    kind: Literal['discover','studio','identify']
     query: str|None=Field(default=None,max_length=240)
     purpose: Literal['catalog','marketing']='catalog'
     input: str|None=Field(default=None,max_length=70)
@@ -53,6 +53,7 @@ def create_app(runtime,root,token):
     def submit(batch:Batch):
         for job in batch.jobs:
             if job.kind=='discover' and not (job.query or '').strip(): raise HTTPException(422,'QUERY_REQUIRED')
+            if job.kind=='identify' and not job.input: raise HTTPException(422,'INPUT_REQUIRED')
             if job.kind=='studio' and not (job.input and (job.prompt or '').strip()): raise HTTPException(422,'STUDIO_INPUT_REQUIRED')
         return {'batch_id':runtime.submit([j.model_dump() for j in batch.jobs])}
     @app.get('/v1/batches/{batch_id}',dependencies=[Depends(auth)])
