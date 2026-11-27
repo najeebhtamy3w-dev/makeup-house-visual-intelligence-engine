@@ -8,6 +8,7 @@ from .safe_download import Downloader
 from .vision_models import BarcodeReader, OCRReader, VisualEncoder
 from .classification import Classifier
 from .multimodal import QwenIdentity
+from .aesthetic import AestheticPredictor
 
 def main():
     p=argparse.ArgumentParser()
@@ -20,7 +21,14 @@ def main():
     p.add_argument('--clip-weights')
     p.add_argument('--ocr',action='store_true')
     p.add_argument('--barcode',action='store_true')
+    p.add_argument('--aesthetic-clip')
+    p.add_argument('--aesthetic-head')
+    p.add_argument('--aesthetic-sha256')
     args=p.parse_args()
+    options=(args.aesthetic_clip,args.aesthetic_head,args.aesthetic_sha256)
+    if any(options) and not all(options):
+        p.error('All three aesthetic options are required together')
+    aesthetic=AestheticPredictor(VisualEncoder(options[0],'ViT-L-14'),options[1],options[2]) if all(options) else None
     identity=QwenIdentity(args.qwen_dir) if args.qwen_dir else None
     encoder=VisualEncoder(args.clip_weights) if args.clip_weights else None
     ocr=None
@@ -31,7 +39,8 @@ def main():
     with Image.open(args.image) as im:
         if im.width*im.height>25000000:
             raise ValueError('REFERENCE_PIXEL_LIMIT')
-        report=run_product(args.name,im.convert('RGB'),{},Downloader(args.host),endpoint=os.environ.get('SEARXNG_ENDPOINT'),seeds=args.seed,barcode=BarcodeReader() if args.barcode else None,ocr=ocr,encoder=encoder,classifier=Classifier(encoder) if encoder else None,output_dir=output,identity_model=identity)
+        report=run_product(args.name,im.convert('RGB'),{},Downloader(args.host),endpoint=os.environ.get('SEARXNG_ENDPOINT'),seeds=args.seed,barcode=BarcodeReader() if args.barcode else None,ocr=ocr,encoder=encoder,classifier=Classifier(encoder) if encoder else None,output_dir=output,identity_model=identity,aesthetic=aesthetic)
+    output.mkdir(parents=True,exist_ok=True)
     (output/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(report['status'])
 
