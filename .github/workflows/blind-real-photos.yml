@@ -2,14 +2,14 @@ name: MH-VIE blind real photos
 on:
   push:
     branches: [development]
-    paths: ['acceptance/blind10/**']
+    paths: ['acceptance/blind10/**', '.github/workflows/blind-real-photos.yml']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   blind:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     env:
       OMP_NUM_THREADS: '4'
     steps:
@@ -59,7 +59,7 @@ jobs:
           PY
       - run: |
           set -o pipefail
-          python -m engine.blind_identity_acceptance --manifest acceptance/blind10/manifest.json --model qwen-model --output blind-report.json 2>&1 | tee blind-log.txt
+          timeout 1200s python -u -m engine.blind_identity_acceptance --manifest acceptance/blind10/manifest.json --model qwen-model --output blind-report.json --index 1 --visual-tokens 384 --new-tokens 128 2>&1 | tee blind-log.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
