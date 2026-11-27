@@ -11,7 +11,7 @@ class BackgroundSegmenter:
         from rembg import remove
         return remove(image,session=self.session,only_mask=True).convert('L')
 
-def prepare_mask(source,output,segmenter,threshold=32,padding=5):
+def prepare_mask(source,output,segmenter,threshold=128,padding=0):
     if not 1<=threshold<=254 or not 0<=padding<=15:
         raise ValueError('INVALID_MASK_PARAMETERS')
     source,output=Path(source),Path(output)
@@ -21,13 +21,14 @@ def prepare_mask(source,output,segmenter,threshold=32,padding=5):
         image=ImageOps.exif_transpose(im).convert('RGB')
     mask=segmenter.segment(image)
     if mask.size!=image.size: raise ValueError('MASK_SIZE_MISMATCH')
-    mask=mask.convert('L').point(lambda x:255 if x>=threshold else 0)
+    from .mask_quality import refine_mask
+    mask,quality=refine_mask(mask,threshold)
     if padding: mask=mask.filter(ImageFilter.MaxFilter(2*padding+1))
     coverage=mask.histogram()[255]/(mask.width*mask.height)
     if not .01<=coverage<=.95: raise ValueError('MASK_COVERAGE_REVIEW_REQUIRED')
     output.parent.mkdir(parents=True,exist_ok=True)
     with output.open('xb') as f: mask.save(f,format='PNG')
-    return {'coverage':coverage,'status':'MASK_REVIEW_REQUIRED','mask_verified':False,'sha256':hashlib.sha256(output.read_bytes()).hexdigest()}
+    return {'quality':quality,'coverage':coverage,'status':'MASK_REVIEW_REQUIRED','mask_verified':False,'sha256':hashlib.sha256(output.read_bytes()).hexdigest()}
 
 def verify_pixels(source,edited,mask):
     with Image.open(source) as im: a=ImageOps.exif_transpose(im).convert('RGB')
