@@ -11,7 +11,7 @@ def suitable_for_review(c):
     return (s.get("status")=="REVIEW_REQUIRED" and not c.get("page_sku_conflict")
         and not c.get("possible_duplicate_of") and min(c.get("width",0),c.get("height",0))>=600
         and s.get("components",{}).get("purpose_fit")==1.0
-        and (v.get("identity_status")=="CORROBORATED_REVIEW_REQUIRED" or any(e.get("status")=="CORROBORATED_REVIEW_REQUIRED" for e in c.get("page_sku_evidence",[])))
+        and v.get("identity_status")=="CORROBORATED_REVIEW_REQUIRED"
         and (v.get("similarity_cosine") or 0)>=0.85)
 
 def priority_discover(query,search,hosts,output,**kwargs):
