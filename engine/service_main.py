@@ -24,8 +24,9 @@ def main():
         editor=segmenter=None
         if os.environ.get('MHVIE_EDIT_MODEL'):
             from .creative_studio import LocalEditor,LazyEditor
-            from .product_lock import BackgroundSegmenter
             editor=LazyEditor(lambda: LocalEditor(os.environ['MHVIE_EDIT_MODEL'],os.environ['MHVIE_EDIT_BACKEND']))
+        if os.environ.get('MHVIE_SEGMENTATION')=='1':
+            from .product_lock import BackgroundSegmenter
             segmenter=BackgroundSegmenter()
         evaluator=None
         if os.environ.get('MHVIE_CLIP_WEIGHTS'):
@@ -38,12 +39,13 @@ def main():
             evaluator=VisualEvaluator(encoder,aesthetic)
         identity=None
         reader=None
-        if os.environ.get('MHVIE_VISION_MODEL'):
+        if os.environ.get('MHVIE_VISION_MODEL') or os.environ.get('MHVIE_OCR')=='1':
             from paddleocr import PaddleOCR
+            reader=PaddleOCR(lang='en',use_doc_orientation_classify=False,use_doc_unwarping=False,use_textline_orientation=False,device='cpu')
+        if os.environ.get('MHVIE_VISION_MODEL'):
             from .multimodal import QwenIdentity
             from .identity_service import IdentityService
             from .safe_download import Downloader
-            reader=PaddleOCR(lang='en',use_doc_orientation_classify=False,use_doc_unwarping=False,use_textline_orientation=False,device='cpu')
             from .lazy_vision import LazyVision
             model=LazyVision(lambda: QwenIdentity(os.environ['MHVIE_VISION_MODEL'],max_visual_tokens=384,max_new_tokens=128))
             external=os.environ.get('MHVIE_IDENTITY_EXTERNAL_SEARCH')=='1'
