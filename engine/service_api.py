@@ -15,13 +15,15 @@ from typing import Literal
 from .barcode_priority import canonical_gtin
 
 class Job(BaseModel):
-    kind: Literal['discover','studio','identify','barcode','photo_discover','smart_discover']
+    kind: Literal['discover','studio','identify','barcode','photo_discover','smart_discover','prepare_mask','locked_scene']
     formats: list[Literal['square','story','portrait']]=Field(default_factory=list,max_length=3)
     brand: Literal['makeup_house','unwan_al_atr']|None=None
     barcode: str|None=Field(default=None,max_length=14)
     query: str|None=Field(default=None,max_length=240)
     purpose: Literal['catalog','marketing']='catalog'
     input: str|None=Field(default=None,max_length=70)
+    mask_input: str|None=Field(default=None,max_length=70)
+    mask_reviewed: bool=False
     prompt: str|None=Field(default=None,max_length=1500)
 
 class Batch(BaseModel):
@@ -72,11 +74,17 @@ def create_app(runtime,root,token):
                 if not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|jpeg|webp)',job.input): raise HTTPException(422,'INVALID_INPUT_ID')
                 candidate=root/'inputs'/job.input
                 if candidate.is_symlink() or not candidate.is_file(): raise HTTPException(404,'INPUT_NOT_FOUND')
+            if job.kind=='locked_scene':
+                if not (job.input and job.mask_input and job.mask_reviewed and (job.prompt or '').strip()):
+                    raise HTTPException(422,'REVIEWED_MASK_AND_PROMPT_REQUIRED')
+                if not re.fullmatch(r'[a-f0-9]{64}\.png',job.mask_input): raise HTTPException(422,'INVALID_MASK_ID')
+                mask=root/'inputs'/job.mask_input
+                if mask.is_symlink() or not mask.is_file(): raise HTTPException(404,'MASK_NOT_FOUND')
             if job.kind=='smart_discover':
                 if job.barcode is not None and canonical_gtin(job.barcode) is None: raise HTTPException(422,'INVALID_GTIN')
                 if not (job.barcode or job.input or (job.query or '').strip()): raise HTTPException(422,'ADDITIONAL_INPUT_REQUIRED')
             if job.kind=='discover' and not (job.query or '').strip(): raise HTTPException(422,'QUERY_REQUIRED')
-            if job.kind in ('identify','barcode','photo_discover') and not job.input: raise HTTPException(422,'INPUT_REQUIRED')
+            if job.kind in ('identify','barcode','photo_discover','prepare_mask') and not job.input: raise HTTPException(422,'INPUT_REQUIRED')
             if job.kind=='studio' and not (job.input and (job.prompt or '').strip()): raise HTTPException(422,'STUDIO_INPUT_REQUIRED')
         return {'batch_id':runtime.submit([j.model_dump() for j in batch.jobs])}
     @app.get('/v1/batches/{batch_id}',dependencies=[Depends(auth)])
