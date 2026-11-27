@@ -8,7 +8,7 @@ from .catalog_evidence import extract_catalog
 from .sku_evidence import compare
 from .candidate_identity import assess_candidate_identity
 
-def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, downloader=None, visual_evaluator=None, purpose='catalog', expected_fields=None):
+def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, downloader=None, visual_evaluator=None, purpose='catalog', expected_fields=None,ocr_reader=None):
     if not isinstance(query,str) or not query.strip() or len(query)>240:
         raise ValueError('INVALID_QUERY')
     if not 1<=max_pages<=10 or not 1<=max_images<=50:
@@ -58,6 +58,13 @@ def discover(query, search, allowed_hosts, output, max_pages=5, max_images=20, d
                 row['visual_evidence']=visual_evaluator(output/row['file'],query)
             except Exception as exc:
                 errors.append({'source':row['url'],'error':type(exc).__name__,'detail':str(exc)[:240],'stage':'VISUAL_EVALUATION'})
+    if ocr_reader is not None and expected_fields:
+        from .candidate_ocr import evaluate_candidate
+        for row in rows:
+            try:
+                row['candidate_ocr']=evaluate_candidate(output/row['file'],expected_fields,ocr_reader)
+            except Exception as exc:
+                errors.append({'source':row['url'],'stage':'CANDIDATE_OCR','error':type(exc).__name__,'detail':str(exc)[:240]})
     for row in rows:
         row['identity_assessment']=assess_candidate_identity(row)
         row.setdefault('visual_evidence',{})['identity_status']=row['identity_assessment']['status']
