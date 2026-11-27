@@ -13,10 +13,11 @@ from typing import Literal
 
 class Job(BaseModel):
     kind: Literal['discover','studio','identify']
+    brand: Literal['makeup_house','unwan_al_atr']|None=None
     query: str|None=Field(default=None,max_length=240)
     purpose: Literal['catalog','marketing']='catalog'
     input: str|None=Field(default=None,max_length=70)
-    prompt: str|None=Field(default=None,max_length=2000)
+    prompt: str|None=Field(default=None,max_length=1500)
 
 class Batch(BaseModel):
     jobs: list[Job]=Field(min_length=1,max_length=100)
@@ -24,7 +25,7 @@ class Batch(BaseModel):
 def create_app(runtime,root,token):
     if len(token)<32: raise ValueError('STRONG_TOKEN_REQUIRED')
     root=Path(root)
-    app=FastAPI(title='MH-VIE Core',version='0.22',docs_url=None,redoc_url=None,openapi_url=None)
+    app=FastAPI(title='MH-VIE Core',version='0.23.3',docs_url=None,redoc_url=None,openapi_url=None)
     def auth(authorization: str=Header(default='')):
         if not hmac.compare_digest(authorization.encode(),('Bearer '+token).encode()):
             raise HTTPException(401,'UNAUTHORIZED')
@@ -81,4 +82,15 @@ def create_app(runtime,root,token):
         if base.parent!=expected or file.parent!=base or not file.is_file():
             raise HTTPException(404,'FILE_NOT_FOUND')
         return FileResponse(file,media_type='application/octet-stream',filename=name)
+    @app.get('/v1/batches/{batch_id}/jobs/{job_id}/export',dependencies=[Depends(auth)])
+    def export(batch_id:str,job_id:str):
+        row=next((r for r in runtime.status(batch_id) if r['id']==job_id and r['state']=='COMPLETED'),None)
+        if row is None: raise HTTPException(404,'JOB_NOT_FOUND')
+        result=json.loads(row['result'])
+        name=result.get('review_archive','')
+        if not re.fullmatch(r'[a-f0-9]{32}\.zip',name): raise HTTPException(404,'EXPORT_NOT_FOUND')
+        base=(root/'jobs'/job_id).resolve()
+        file=(base/name).resolve()
+        if file.parent!=base or not file.is_file(): raise HTTPException(404,'EXPORT_NOT_FOUND')
+        return FileResponse(file,media_type='application/zip',filename='review.zip')
     return app
