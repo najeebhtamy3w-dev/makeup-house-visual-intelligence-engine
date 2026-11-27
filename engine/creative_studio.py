@@ -76,3 +76,8 @@ class LazyEditor:
         if self.editor is None:
             self.editor=self.factory()
         return self.editor.edit(image,prompt,seed)
+
+    def background(self,prompt,width=768,height=768,seed=42):
+        if self.editor is None:
+            self.editor=self.factory()
+        return self.editor.background(prompt,width,height,seed)
