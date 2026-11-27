@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.gradle/
+**/build/
+local.properties
+*.keystore
+*.jks
+.env
+results-local/
+*.sqlite
+*.sqlite3
+*.sqlite-journal

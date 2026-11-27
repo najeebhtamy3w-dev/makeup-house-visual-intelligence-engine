@@ -2,7 +2,7 @@
 from PIL import Image
 from collections import deque
 
-def refine_mask(probability, threshold=128):
+def refine_mask(probability, threshold=128, *, preserve_details=False):
     p=probability.convert("L")
     w,h=p.size
     if w*h>25000000: raise ValueError("PIXEL_LIMIT")
@@ -35,14 +35,28 @@ def refine_mask(probability, threshold=128):
         else:
             for j in comp: labels[j]=255
     support=Image.frombytes("L",(a,b),bytes(labels)).resize((w,h),Image.Resampling.NEAREST)
-    binary=p.point(lambda v:255 if v>=threshold else 0)
+    threshold_mask=p.point(lambda v:255 if v>=threshold else 0)
+    binary=threshold_mask
     from PIL import ImageChops, ImageFilter
     binary=ImageChops.multiply(binary,support.filter(ImageFilter.MaxFilter(3)))
+    foreground_pixels=threshold_mask.histogram()[255]
+    cleanup_removed=ImageChops.subtract(threshold_mask,binary).histogram()[255]
+    # A preview cannot reliably distinguish a thin cap/stem from missing support.
+    # Explicit conservative mode falls back to the original full-res threshold;
+    # no expensive full-resolution graph walk or guessed product geometry.
+    substantial_loss=cleanup_removed>max(3,foreground_pixels*.0005)
+    detail_protection_applied=preserve_details and substantial_loss
+    if detail_protection_applied:
+        binary=threshold_mask
     bounds=binary.getbbox()
     hist=p.histogram()
     uncertain=sum(hist[64:192])/(w*h)
     flags=[]
+    if substantial_loss: flags.append("DETAIL_LOSS_REVIEW_REQUIRED")
     if len(components)>1 and len(components[1])>=largest*.005: flags.append("MULTIPLE_OBJECTS")
     if bounds and (bounds[0]==0 or bounds[1]==0 or bounds[2]==w or bounds[3]==h): flags.append("TOUCHES_FRAME")
     if uncertain>.08: flags.append("UNCERTAIN_BOUNDARY")
-    return binary,{"components":len(components),"removed_preview_pixels":removed,"uncertain_fraction":uncertain,"flags":flags,"human_review_required":True}
+    return binary,{"components":len(components),"threshold_foreground_pixels":foreground_pixels,
+                   "cleanup_removed_foreground_pixels":cleanup_removed,
+                   "removed_foreground_pixels":0 if detail_protection_applied else cleanup_removed,
+                   "detail_protection_applied":bool(detail_protection_applied),"removed_preview_pixels":removed,"uncertain_fraction":uncertain,"flags":flags,"human_review_required":True}

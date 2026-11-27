@@ -5,6 +5,17 @@ import argparse
 from pathlib import Path
 from .batch_runtime import BatchRuntime
 
+def worker_lease(root):
+    """Linux process lock: recovery must never race a live inference worker."""
+    import fcntl
+    lease=(Path(root)/'worker.lock').open('a+b')
+    try:
+        fcntl.flock(lease.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except BlockingIOError:
+        lease.close()
+        raise RuntimeError('WORKER_ALREADY_ACTIVE') from None
+    return lease
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument('mode',choices=['api','worker','recover'])
@@ -17,8 +28,12 @@ def main():
         from .service_api import create_app
         uvicorn.run(create_app(runtime,root,os.environ['MHVIE_TOKEN']),host='127.0.0.1',port=8765)
     elif a.mode=='recover':
-        print(runtime.recover_interrupted())
+        with worker_lease(root):
+            print(runtime.recover_interrupted())
     else:
+        lease=worker_lease(root)
+        # Holding the process lock proves the previous worker has stopped.
+        runtime.recover_interrupted()
         from .job_handler import JobHandler
         from .search_discovery import SearxDiscovery
         editor=segmenter=None

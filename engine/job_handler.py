@@ -1,6 +1,7 @@
 """Trusted operator configuration; job payloads cannot select arbitrary paths or hosts."""
 from pathlib import Path
 import re
+import hashlib
 from .priority_discovery import priority_discover as discover
 from .multi_input import resolve_input
 from .product_registry import ProductRegistry
@@ -30,8 +31,13 @@ class JobHandler:
     def input(self,name):
         if not isinstance(name,str) or not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|jpeg|webp)',name):
             raise ValueError('INVALID_INPUT_ID')
-        path=(self.root/'inputs'/name).resolve()
+        candidate=self.root/'inputs'/name
+        if candidate.is_symlink() or candidate.parent.is_symlink(): raise ValueError('INPUT_NOT_FOUND')
+        path=candidate.resolve()
         if path.parent!=(self.root/'inputs').resolve() or not path.is_file(): raise ValueError('INPUT_NOT_FOUND')
+        with path.open('rb') as source:
+            data=source.read(10000001)
+        if len(data)>10000000 or hashlib.sha256(data).hexdigest()!=name.split('.')[0]: raise ValueError('INPUT_HASH_MISMATCH')
         return path
     def __call__(self,job,payload):
         if not re.fullmatch(r'[a-f0-9]{32}',job): raise ValueError('INVALID_JOB_ID')
@@ -93,7 +99,6 @@ class JobHandler:
         elif kind=='direct_edit':
             if self.editor is None: raise RuntimeError('STUDIO_UNAVAILABLE')
             from PIL import Image,ImageOps
-            import hashlib
             source=self.input(payload['input'])
             with Image.open(source) as im:
                 if im.width*im.height>25000000: raise ValueError('PIXEL_LIMIT')
@@ -120,8 +125,19 @@ class JobHandler:
         result['artifact_directory']=str(output.relative_to(self.root))
         result['publication_allowed']=False
         result['brand']=payload.get('brand')
+        result['artifacts']={}
+        for artifact in sorted(output.iterdir()):
+            if artifact.is_symlink() or not artifact.is_file() or artifact.suffix not in ('.png','.jpg','.jpeg','.webp','.bin'): continue
+            digest=hashlib.sha256()
+            with artifact.open('rb') as stream:
+                for chunk in iter(lambda:stream.read(1048576),b''): digest.update(chunk)
+            result['artifacts'][artifact.name]={'sha256':digest.hexdigest(),'bytes':artifact.stat().st_size}
         if kind in ('direct_edit','locked_scene','studio','discover','photo_discover','smart_discover'):
             archive=output.parent/(output.name+'.zip')
             export_review(output,archive,result)
             result['review_archive']=archive.name
+            digest=hashlib.sha256()
+            with archive.open('rb') as stream:
+                for chunk in iter(lambda:stream.read(1048576),b''): digest.update(chunk)
+            result['review_archive_sha256']=digest.hexdigest()
         return result

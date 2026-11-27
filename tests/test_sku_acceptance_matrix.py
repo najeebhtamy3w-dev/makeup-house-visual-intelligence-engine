@@ -2,8 +2,8 @@ import unittest
 from engine.sku_evidence import compare
 class SKUAcceptanceMatrix(unittest.TestCase):
     def test_each_conflict(self):
-        expected={'brand':'Anua','name':'Niacinamide serum','size':'30ml','variant':'10% + TXA 4%','gtin':'8801234567890'}
-        for key,value in {'brand':'Other','name':'Retinol serum','size':'100ml','variant':'5%','gtin':'8801234567891'}.items():
+        expected={'brand':'Anua','name':'Niacinamide serum','size':'30ml','variant':'10% + TXA 4%','gtin':'4006381333931'}
+        for key,value in {'brand':'Other','name':'Retinol serum','size':'100ml','variant':'5%','gtin':'5901234123457'}.items():
             with self.subTest(field=key):
                 result=compare(expected,{**expected,key:value})
                 self.assertEqual(result['status'],'CONFLICT')

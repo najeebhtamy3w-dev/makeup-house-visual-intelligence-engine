@@ -11,7 +11,7 @@ class BackgroundSegmenter:
         from rembg import remove
         return remove(image,session=self.session,only_mask=True).convert('L')
 
-def prepare_mask(source,output,segmenter,threshold=128,padding=0):
+def prepare_mask(source,output,segmenter,threshold=128,padding=0, *, preserve_details=False):
     if not 1<=threshold<=254 or not 0<=padding<=15:
         raise ValueError('INVALID_MASK_PARAMETERS')
     source,output=Path(source),Path(output)
@@ -20,7 +20,7 @@ def prepare_mask(source,output,segmenter,threshold=128,padding=0):
         if im.width*im.height>25000000: raise ValueError('PIXEL_LIMIT')
         image=ImageOps.exif_transpose(im).convert('RGB')
     from .adaptive_mask import adaptive_mask
-    mask,quality=adaptive_mask(image,segmenter,threshold)
+    mask,quality=adaptive_mask(image,segmenter,threshold,preserve_details=preserve_details)
     if padding: mask=mask.filter(ImageFilter.MaxFilter(2*padding+1))
     coverage=mask.histogram()[255]/(mask.width*mask.height)
     if not .01<=coverage<=.95: raise ValueError('MASK_COVERAGE_REVIEW_REQUIRED')

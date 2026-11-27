@@ -1,17 +1,17 @@
 from PIL import ImageOps, ImageChops
 from .mask_quality import refine_mask
 
-def adaptive_mask(image,segmenter,threshold=128):
+def adaptive_mask(image,segmenter,threshold=128, *, preserve_details=False):
     probability=segmenter.segment(image).convert("L")
     if probability.size!=image.size: raise ValueError("MASK_SIZE_MISMATCH")
-    first,quality=refine_mask(probability,threshold)
+    first,quality=refine_mask(probability,threshold,preserve_details=preserve_details)
     report={"passes":1,"quality":quality,"selection":"PRIMARY","mask_verified":False}
     if quality["flags"]:
         # Flip consistency exposes unstable predictions without another model download.
         try:
             other=ImageOps.mirror(segmenter.segment(ImageOps.mirror(image)).convert("L"))
             if other.size!=image.size: raise ValueError("MASK_SIZE_MISMATCH")
-            second,q2=refine_mask(other,threshold)
+            second,q2=refine_mask(other,threshold,preserve_details=preserve_details)
             union=ImageChops.lighter(first,second).histogram()[255]
             intersection=ImageChops.darker(first,second).histogram()[255]
             report.update(passes=2,consistency_iou=intersection/max(1,union),secondary_quality=q2)

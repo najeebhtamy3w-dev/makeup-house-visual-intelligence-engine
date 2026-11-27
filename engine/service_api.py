@@ -6,7 +6,7 @@ import io
 import re
 import os
 import tempfile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
 from PIL import Image
 from fastapi import FastAPI, HTTPException, Header, Request, Depends
@@ -37,11 +37,30 @@ class Batch(BaseModel):
 
 def create_app(runtime,root,token):
     if len(token)<32: raise ValueError('STRONG_TOKEN_REQUIRED')
-    root=Path(root)
+    root=Path(root).resolve()
     app=FastAPI(title='MH-VIE Core',version='0.24',docs_url=None,redoc_url=None,openapi_url=None)
     def auth(authorization: str=Header(default='')):
         if not hmac.compare_digest(authorization.encode(),('Bearer '+token).encode()):
             raise HTTPException(401,'UNAUTHORIZED')
+    @app.middleware('http')
+    async def bounded_requests(request:Request,call_next):
+        if request.headers.get('origin') is not None:
+            return JSONResponse({'detail':'BROWSER_ORIGIN_NOT_ALLOWED'},status_code=403)
+        # Uploads already stream with a separate 10 MB image bound.
+        if request.method in ('POST','PUT','PATCH') and request.url.path!='/v1/inputs':
+            body=bytearray()
+            async for chunk in request.stream():
+                if len(body)+len(chunk)>1000000:
+                    return JSONResponse({'detail':'REQUEST_LIMIT'},status_code=413)
+                body.extend(chunk)
+            request._body=bytes(body)
+        response=await call_next(request)
+        response.headers['Cache-Control']='no-store'
+        response.headers['X-Content-Type-Options']='nosniff'
+        return response
+    @app.get('/v1/openapi.json',dependencies=[Depends(auth)],include_in_schema=False)
+    def openapi():
+        return app.openapi()
     @app.get('/v1/health',dependencies=[Depends(auth)])
     def health():
         return {'status':'API_AVAILABLE','model_readiness':'NOT_VERIFIED'}
@@ -58,7 +77,9 @@ def create_app(runtime,root,token):
                 im.verify()
         except Exception: raise HTTPException(422,'INVALID_IMAGE')
         name=hashlib.sha256(data).hexdigest()+'.'+ext
-        folder=root/'inputs'; folder.mkdir(parents=True,exist_ok=True)
+        folder=root/'inputs'
+        if folder.is_symlink(): raise HTTPException(409,'INPUT_STORAGE_CONFLICT')
+        folder.mkdir(parents=True,exist_ok=True)
         with tempfile.NamedTemporaryFile(dir=folder,delete=False) as f:
             temp=Path(f.name)
             try:
@@ -74,7 +95,7 @@ def create_app(runtime,root,token):
                 temp.unlink(missing_ok=True)
         return {'input':name}
     @app.post('/v1/batches',dependencies=[Depends(auth)])
-    def submit(batch:Batch):
+    def submit(batch:Batch,idempotency_key:str|None=Header(default=None,min_length=1,max_length=128)):
         for job in batch.jobs:
             if job.input is not None:
                 if not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|jpeg|webp)',job.input): raise HTTPException(422,'INVALID_INPUT_ID')
@@ -93,7 +114,11 @@ def create_app(runtime,root,token):
             if job.kind=='discover' and not (job.query or '').strip(): raise HTTPException(422,'QUERY_REQUIRED')
             if job.kind in ('identify','barcode','photo_discover','prepare_mask') and not job.input: raise HTTPException(422,'INPUT_REQUIRED')
             if job.kind in ('studio','direct_edit') and not (job.input and (job.prompt or '').strip()): raise HTTPException(422,'STUDIO_INPUT_REQUIRED')
-        return {'batch_id':runtime.submit([j.model_dump() for j in batch.jobs])}
+        try:
+            return {'batch_id':runtime.submit([j.model_dump() for j in batch.jobs],idempotency_key=idempotency_key)}
+        except ValueError as exc:
+            if str(exc)=='IDEMPOTENCY_CONFLICT': raise HTTPException(409,'IDEMPOTENCY_CONFLICT')
+            raise
     @app.get('/v1/batches/{batch_id}',dependencies=[Depends(auth)])
     def status(batch_id:str):
         rows=runtime.status(batch_id)
@@ -106,6 +131,18 @@ def create_app(runtime,root,token):
     def retry(batch_id:str):
         if not runtime.status(batch_id): raise HTTPException(404,'BATCH_NOT_FOUND')
         return {'requeued':runtime.retry(batch_id)}
+    @app.post('/v1/batches/{batch_id}/cancel',dependencies=[Depends(auth)])
+    def cancel(batch_id:str):
+        if not runtime.status(batch_id): raise HTTPException(404,'BATCH_NOT_FOUND')
+        return {'cancelled':runtime.cancel(batch_id)}
+    def verified_file(file,expected_hash,limit):
+        if file.is_symlink() or not file.is_file(): raise HTTPException(404,'FILE_NOT_FOUND')
+        if file.stat().st_size>limit: raise HTTPException(413,'ARTIFACT_LIMIT')
+        if not isinstance(expected_hash,str) or not re.fullmatch(r'[a-f0-9]{64}',expected_hash): raise HTTPException(409,'ARTIFACT_MANIFEST_REQUIRED')
+        digest=hashlib.sha256()
+        with file.open('rb') as stream:
+            for chunk in iter(lambda:stream.read(1048576),b''): digest.update(chunk)
+        if digest.hexdigest()!=expected_hash: raise HTTPException(409,'ARTIFACT_INTEGRITY_CONFLICT')
     @app.get('/v1/batches/{batch_id}/jobs/{job_id}/files/{name}',dependencies=[Depends(auth)])
     def artifact(batch_id:str,job_id:str,name:str):
         if not re.fullmatch(r'(?:[a-f0-9]{64}\.bin|edited\.png|mask\.png|preview\.png|square\.png|story\.png|portrait\.png)',name):
@@ -118,9 +155,17 @@ def create_app(runtime,root,token):
         base=(root/directory).resolve()
         expected=(root/'jobs'/job_id).resolve()
         file=(base/name).resolve()
-        if base.parent!=expected or file.parent!=base or not file.is_file():
+        if (root/'jobs').is_symlink() or expected.parent!=(root/'jobs') or base.parent!=expected or file.parent!=base or (base/name).is_symlink() or not file.is_file():
             raise HTTPException(404,'FILE_NOT_FOUND')
-        return FileResponse(file,media_type='application/octet-stream',filename=name)
+        manifest=result.get('artifacts',{}).get(name,{})
+        expected_hash=manifest.get('sha256') or (name.split('.')[0] if name.endswith('.bin') else None)
+        verified_file(file,expected_hash,25000000)
+        try:
+            from .safe_download import inspect_image
+            with Image.open(file) as image: mime=Image.MIME.get(image.format)
+            inspect_image(file.read_bytes(),mime)
+        except Exception: raise HTTPException(409,'INVALID_ARTIFACT_IMAGE')
+        return FileResponse(file,media_type=mime,filename=name)
     @app.get('/v1/batches/{batch_id}/jobs/{job_id}/export',dependencies=[Depends(auth)])
     def export(batch_id:str,job_id:str):
         row=next((r for r in runtime.status(batch_id) if r['id']==job_id and r['state']=='COMPLETED'),None)
@@ -130,6 +175,7 @@ def create_app(runtime,root,token):
         if not re.fullmatch(r'[a-f0-9]{32}\.zip',name): raise HTTPException(404,'EXPORT_NOT_FOUND')
         base=(root/'jobs'/job_id).resolve()
         file=(base/name).resolve()
-        if file.parent!=base or not file.is_file(): raise HTTPException(404,'EXPORT_NOT_FOUND')
+        if (root/'jobs').is_symlink() or base.parent!=(root/'jobs') or file.parent!=base or (base/name).is_symlink() or not file.is_file(): raise HTTPException(404,'EXPORT_NOT_FOUND')
+        verified_file(file,result.get('review_archive_sha256'),250000000)
         return FileResponse(file,media_type='application/zip',filename='review.zip')
     return app
