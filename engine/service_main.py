@@ -43,7 +43,8 @@ def main():
             from .identity_service import IdentityService
             from .safe_download import Downloader
             reader=PaddleOCR(lang='en',use_doc_orientation_classify=False,use_doc_unwarping=False,use_textline_orientation=False,device='cpu')
-            model=QwenIdentity(os.environ['MHVIE_VISION_MODEL'],max_visual_tokens=384,max_new_tokens=128)
+            from .lazy_vision import LazyVision
+            model=LazyVision(lambda: QwenIdentity(os.environ['MHVIE_VISION_MODEL'],max_visual_tokens=384,max_new_tokens=128))
             external=os.environ.get('MHVIE_IDENTITY_EXTERNAL_SEARCH')=='1'
             identity=IdentityService(reader,model,SearxDiscovery(os.environ['MHVIE_SEARX']) if external else None,Downloader(os.environ['MHVIE_HOSTS'].split(',')) if external else None)
         handler=JobHandler(root,SearxDiscovery(os.environ['MHVIE_SEARX']),os.environ['MHVIE_HOSTS'].split(','),editor,segmenter,evaluator,identity)
