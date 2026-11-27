@@ -33,7 +33,8 @@ jobs:
           from engine.creative_studio import protected_edit
           p=Path('acceptance/blind10')
           archive=p/'MHVIE_blind_10.zip'
-          out=Path('background-results')
+          out=Path('background-results/real-product')
+          out.mkdir(parents=True,exist_ok=True)
           source=out/'source.jpg'
           if archive.exists():
               with zipfile.ZipFile(archive) as z:
