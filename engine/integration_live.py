@@ -14,6 +14,7 @@ def main():
     p.add_argument('--clip-weights')
     p.add_argument('--aesthetic-weights')
     p.add_argument('--aesthetic-sha256')
+    p.add_argument('--require-instagram',action='store_true')
     p.add_argument('--reference',type=Path)
     p.add_argument('--expected-fields',type=Path)
     a=p.parse_args()
@@ -48,6 +49,7 @@ def main():
         result['visual_evaluated_count']=sum(c.get('visual_evidence',{}).get('classification_cosine') is not None for c in result['candidates'])
         result['aesthetic_evaluated_count']=sum(c.get('visual_evidence',{}).get('aesthetic_normalized') is not None for c in result['candidates'])
         result['reference_similarity_count']=sum(c.get('visual_evidence',{}).get('similarity_cosine') is not None for c in result['candidates'])
+        result['instagram_download_count']=sum(any(e.get('stage')=='instagram' for e in c.get('source_evidence',[])) for c in result['candidates'])
         result['reference_mode']='operator_labeled' if a.reference else 'none'
         result['elapsed_seconds']=time.monotonic()-start
         reports.append(result)
@@ -56,6 +58,8 @@ def main():
     (root/'report.json').write_text(json.dumps(reports,indent=2),encoding='utf-8')
     if not all(r['candidates'] and not r.get('publication_allowed',False) for r in reports):
         raise SystemExit('LIVE_DISCOVERY_GATE_FAILED')
+    if a.require_instagram and not any(r['instagram_download_count'] for r in reports):
+        raise SystemExit('INSTAGRAM_DOWNLOAD_GATE_FAILED')
     if evaluator is not None and not all(r['visual_evaluated_count']==len(r['candidates']) for r in reports):
         raise SystemExit('LIVE_VISUAL_GATE_FAILED')
     if a.reference and not all(r['reference_similarity_count']==len(r['candidates']) for r in reports):
