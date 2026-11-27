@@ -3,6 +3,8 @@ from pathlib import Path
 import re
 from .integration_core import discover
 from .creative_studio import protected_edit
+from .brand_profiles import campaign_prompt
+from .review_export import export_review
 from .product_lock import prepare_mask,verify_pixels
 
 class JobHandler:
@@ -36,11 +38,17 @@ class JobHandler:
             source=self.input(payload['input'])
             mask=output/'mask.png'
             mask_report=prepare_mask(source,mask,self.segmenter)
-            result=protected_edit(source,mask,payload['prompt'],self.editor,output/'edited.png')
+            prompt=campaign_prompt(payload['brand'],payload['prompt']) if payload.get('brand') else payload['prompt']
+            result=protected_edit(source,mask,prompt,self.editor,output/'edited.png')
             result['mask']=mask_report
             result['verification']=verify_pixels(source,output/'edited.png',mask)
             if not result['verification']['protected_pixels_preserved']: raise RuntimeError('IDENTITY_LOCK_FAILED')
         else: raise ValueError('UNKNOWN_JOB_KIND')
         result['artifact_directory']=str(output.relative_to(self.root))
         result['publication_allowed']=False
+        result['brand']=payload.get('brand')
+        if kind in ('studio','discover'):
+            archive=output.parent/(output.name+'.zip')
+            export_review(output,archive,result)
+            result['review_archive']=archive.name
         return result
