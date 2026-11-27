@@ -9,6 +9,7 @@ from .safe_download import Downloader
 from .photo_workflow import photo_discovery,read_barcodes
 from .campaign_formats import render_formats
 from .creative_studio import protected_edit
+from .locked_scene import compose_scene
 from .brand_profiles import campaign_prompt
 from .review_export import export_review
 from .product_lock import prepare_mask,verify_pixels
@@ -58,6 +59,18 @@ class JobHandler:
         elif kind=='identify':
             if self.identity_service is None: raise RuntimeError('IDENTITY_UNAVAILABLE')
             result=self.identity_service(self.input(payload['input']))
+        elif kind=='prepare_mask':
+            if self.segmenter is None: raise RuntimeError('SEGMENTER_UNAVAILABLE')
+            result=prepare_mask(self.input(payload['input']),output/'mask.png',self.segmenter)
+        elif kind=='locked_scene':
+            if self.editor is None: raise RuntimeError('STUDIO_UNAVAILABLE')
+            if payload.get('mask_reviewed') is not True: raise ValueError('HUMAN_MASK_REVIEW_REQUIRED')
+            source=self.input(payload['input'])
+            mask=self.input(payload['mask_input'])
+            prompt=campaign_prompt(payload['brand'],payload['prompt']) if payload.get('brand') else payload['prompt']
+            result=compose_scene(source,mask,self.editor,prompt,output/'edited.png',mask_reviewed=True)
+            result['formats']=render_formats(output/'edited.png',output,payload.get('formats') or [])
+            result['formats_require_review']=True
         elif kind=='studio':
             if self.editor is None or self.segmenter is None: raise RuntimeError('STUDIO_UNAVAILABLE')
             source=self.input(payload['input'])
@@ -73,7 +86,7 @@ class JobHandler:
         result['artifact_directory']=str(output.relative_to(self.root))
         result['publication_allowed']=False
         result['brand']=payload.get('brand')
-        if kind in ('studio','discover','photo_discover','smart_discover'):
+        if kind in ('locked_scene','studio','discover','photo_discover','smart_discover'):
             archive=output.parent/(output.name+'.zip')
             export_review(output,archive,result)
             result['review_archive']=archive.name
