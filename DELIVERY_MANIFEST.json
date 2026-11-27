@@ -1,11 +1,17 @@
 {
-  "version": "0.23.3",
+  "version": "0.25.0-rc1",
   "status": "IMPLEMENTATION_CANDIDATE_NOT_ACCEPTED",
   "branch": "feature/v015-search-integration",
   "entrypoint": "python -m engine.service_main",
   "job_types": [
     "identify",
     "discover",
+    "barcode",
+    "smart_discover",
+    "photo_discover",
+    "prepare_mask",
+    "correct_mask",
+    "locked_scene",
     "studio"
   ],
   "models": "MODEL_REGISTRY.json",
@@ -15,14 +21,14 @@
   ],
   "guide": "WORK_INTEGRATION_GUIDE.md",
   "pending": [
-    "real model inference and GPU compatibility",
-    "generative dependency lock",
-    "license verification",
-    "automatic barcode and photo-to-discovery integration",
-    "campaign format rendering",
+    "CI regression confirmation",
+    "real integrated BiRefNet and FLUX acceptance",
+    "Qwen editor benchmark",
+    "generative dependency lock and license verification",
     "live search acceptance",
     "security and deployment",
     "Android acceptance"
   ],
-  "publication_allowed": false
+  "publication_allowed": false,
+  "legacy_studio": "experimental; use locked_scene for product-preserving marketing"
 }
