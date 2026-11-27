@@ -1,0 +1,28 @@
+{
+  "version": "0.23.3",
+  "status": "IMPLEMENTATION_CANDIDATE_NOT_ACCEPTED",
+  "branch": "feature/v015-search-integration",
+  "entrypoint": "python -m engine.service_main",
+  "job_types": [
+    "identify",
+    "discover",
+    "studio"
+  ],
+  "models": "MODEL_REGISTRY.json",
+  "dependencies": [
+    "requirements-service.txt",
+    "requirements-identity.txt"
+  ],
+  "guide": "WORK_INTEGRATION_GUIDE.md",
+  "pending": [
+    "real model inference and GPU compatibility",
+    "generative dependency lock",
+    "license verification",
+    "automatic barcode and photo-to-discovery integration",
+    "campaign format rendering",
+    "live search acceptance",
+    "security and deployment",
+    "Android acceptance"
+  ],
+  "publication_allowed": false
+}
