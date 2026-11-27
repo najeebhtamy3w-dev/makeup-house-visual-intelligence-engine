@@ -6,7 +6,8 @@ from .creative_studio import protected_edit
 from .product_lock import prepare_mask,verify_pixels
 
 class JobHandler:
-    def __init__(self,root,search,hosts,editor=None,segmenter=None,visual_evaluator=None):
+    def __init__(self,root,search,hosts,editor=None,segmenter=None,visual_evaluator=None,identity_service=None):
+        self.identity_service=identity_service
         self.root=Path(root).resolve()
         self.search=search
         self.hosts=tuple(hosts)
@@ -27,6 +28,9 @@ class JobHandler:
         kind=payload.get('kind')
         if kind=='discover':
             result=discover(payload['query'],self.search,self.hosts,output,visual_evaluator=self.visual_evaluator,purpose=payload.get('purpose','catalog'))
+        elif kind=='identify':
+            if self.identity_service is None: raise RuntimeError('IDENTITY_UNAVAILABLE')
+            result=self.identity_service(self.input(payload['input']))
         elif kind=='studio':
             if self.editor is None or self.segmenter is None: raise RuntimeError('STUDIO_UNAVAILABLE')
             source=self.input(payload['input'])
