@@ -12,7 +12,12 @@ def main():
     p.add_argument('--visual-tokens',type=int,default=384)
     p.add_argument('--new-tokens',type=int,default=128)
     p.add_argument('--ocr',action='store_true')
+    p.add_argument('--searx-endpoint',help='Opt-in external search; OCR text is sent to this configured provider')
     a=p.parse_args()
+    search=None
+    if a.searx_endpoint:
+        from .search_discovery import SearxDiscovery
+        search=SearxDiscovery(a.searx_endpoint)
     manifest=Path(a.manifest).resolve()
     rows=json.loads(manifest.read_text())
     if not isinstance(rows,list) or not 1<=len(rows)<=100:
@@ -55,7 +60,7 @@ def main():
                     lines=read_ocr(path,reader)
                     from .adaptive_identity import identify_adaptive
                     ocr_elapsed=time.monotonic()-ocr_start
-                    result=identify_adaptive(lines,lambda: visual(image))
+                    result=identify_adaptive(lines,lambda: visual(image),search=search)
                     result['ocr_lines']=lines
                 except Exception as exc:
                     result['ocr_error']=str(exc)
