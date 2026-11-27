@@ -1,7 +1,7 @@
 """Trusted operator configuration; job payloads cannot select arbitrary paths or hosts."""
 from pathlib import Path
 import re
-from .integration_core import discover
+from .priority_discovery import priority_discover as discover
 from .multi_input import resolve_input
 from .product_registry import ProductRegistry
 from .catalog_evidence import collect_catalog
