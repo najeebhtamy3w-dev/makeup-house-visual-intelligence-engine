@@ -101,7 +101,9 @@ class JobHandler:
             prompt=campaign_prompt(payload['brand'],payload['prompt']) if payload.get('brand') else payload['prompt']
             edited=self.editor.edit(original,prompt,42).convert('RGB')
             with (output/'edited.png').open('xb') as f: edited.save(f,format='PNG')
-            result={'status':'VISUAL_REVIEW_REQUIRED','identity_verified':False,'protected_pixels_preserved':None,'mask_required':False,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest()}
+            from .direct_edit_qa import assess_edit
+            qa=assess_edit(source,output/'edited.png',self.visual_evaluator,self.ocr_reader)
+            result={'quality_review':qa,'status':'VISUAL_REVIEW_REQUIRED','identity_verified':False,'protected_pixels_preserved':None,'mask_required':False,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest()}
             result['formats']=render_formats(output/'edited.png',output,payload.get('formats') or [])
         elif kind=='studio':
             if self.editor is None or self.segmenter is None: raise RuntimeError('STUDIO_UNAVAILABLE')
