@@ -13,4 +13,12 @@ def assess_text(fields,lines):
             'observed_sizes':sorted(sizes),'lines':lines,'identity_verified':False}
 
 def evaluate_candidate(path,fields,reader):
-    return assess_text(fields,read_ocr(path,reader))
+    from tempfile import TemporaryDirectory
+    from pathlib import Path
+    from PIL import Image,ImageOps
+    with TemporaryDirectory() as d:
+        target=Path(d)/'candidate.png'
+        with Image.open(path) as im:
+            if im.width*im.height>25000000: raise ValueError('PIXEL_LIMIT')
+            ImageOps.exif_transpose(im).convert('RGB').save(target)
+        return assess_text(fields,read_ocr(target,reader))
