@@ -17,7 +17,12 @@ def main():
     p.add_argument('--require-instagram',action='store_true')
     p.add_argument('--reference',type=Path)
     p.add_argument('--expected-fields',type=Path)
+    p.add_argument('--ocr',action='store_true')
     a=p.parse_args()
+    reader=None
+    if a.ocr:
+        from paddleocr import PaddleOCR
+        reader=PaddleOCR(lang='en',use_doc_orientation_classify=False,use_doc_unwarping=False,use_textline_orientation=False,device='cpu')
     if bool(a.reference)!=bool(a.expected_fields): p.error('reference and expected fields must be supplied together')
     if a.reference and not a.clip_weights: p.error('reference requires CLIP weights')
     evaluator=None
@@ -43,13 +48,14 @@ def main():
     for i,q in enumerate(queries):
         start=time.monotonic()
         try:
-            result=discover(q,search,a.host,root/str(i),max_pages=5,max_images=20,visual_evaluator=evaluator,expected_fields=expected)
+            result=discover(q,search,a.host,root/str(i),max_pages=5,max_images=20,visual_evaluator=evaluator,expected_fields=expected,ocr_reader=reader)
         except Exception as exc:
             result={'query':q,'status':'FAILED','error':type(exc).__name__,'candidates':[]}
         result['visual_evaluated_count']=sum(c.get('visual_evidence',{}).get('classification_cosine') is not None for c in result['candidates'])
         result['aesthetic_evaluated_count']=sum(c.get('visual_evidence',{}).get('aesthetic_normalized') is not None for c in result['candidates'])
         result['reference_similarity_count']=sum(c.get('visual_evidence',{}).get('similarity_cosine') is not None for c in result['candidates'])
         result['instagram_download_count']=sum(any(e.get('stage')=='instagram' for e in c.get('source_evidence',[])) for c in result['candidates'])
+        result['candidate_ocr_count']=sum('candidate_ocr' in c for c in result['candidates'])
         result['reference_mode']='operator_labeled' if a.reference else 'none'
         result['elapsed_seconds']=time.monotonic()-start
         reports.append(result)
@@ -64,6 +70,8 @@ def main():
         raise SystemExit('LIVE_VISUAL_GATE_FAILED')
     if a.reference and not all(r['reference_similarity_count']==len(r['candidates']) for r in reports):
         raise SystemExit('REFERENCE_SIMILARITY_GATE_FAILED')
+    if a.ocr and a.reference and not all(r['candidate_ocr_count']==len(r['candidates']) for r in reports):
+        raise SystemExit('CANDIDATE_OCR_GATE_FAILED')
     if a.aesthetic_weights and not all(r['aesthetic_evaluated_count']==len(r['candidates']) for r in reports):
         raise SystemExit('LIVE_AESTHETIC_GATE_FAILED')
 
