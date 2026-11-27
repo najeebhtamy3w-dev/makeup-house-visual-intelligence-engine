@@ -22,9 +22,13 @@ def main():
         from .job_handler import JobHandler
         from .search_discovery import SearxDiscovery
         editor=segmenter=None
+        models={name:os.environ[key] for name,key in [('flux','MHVIE_FLUX_MODEL'),('qwen','MHVIE_QWEN_EDIT_MODEL')] if os.environ.get(key)}
         if os.environ.get('MHVIE_EDIT_MODEL'):
-            from .creative_studio import LocalEditor,LazyEditor
-            editor=LazyEditor(lambda: LocalEditor(os.environ['MHVIE_EDIT_MODEL'],os.environ['MHVIE_EDIT_BACKEND']))
+            models.setdefault(os.environ['MHVIE_EDIT_BACKEND'],os.environ['MHVIE_EDIT_MODEL'])
+        if models:
+            from .creative_studio import LocalEditor
+            from .editor_router import EditorRouter
+            editor=EditorRouter({name:(lambda name=name,path=path:LocalEditor(path,name)) for name,path in models.items()},os.environ.get('MHVIE_EDIT_BACKEND',next(iter(models))))
         if os.environ.get('MHVIE_SEGMENTATION')=='1':
             from .product_lock import BackgroundSegmenter
             segmenter=BackgroundSegmenter()
