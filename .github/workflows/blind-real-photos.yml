@@ -65,6 +65,10 @@ jobs:
               assert f.is_relative_to(p.resolve())
               assert hashlib.sha256(f.read_bytes()).hexdigest()==row['sha256']
           PY
+      - name: Early lightweight fusion tests
+        run: |
+          python -m py_compile engine/identity_fusion.py
+          python -m unittest discover -s tests -p test_identity_fusion.py
       - run: python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
       - run: python -m pip install transformers==4.51.3 accelerate==1.6.0 Pillow huggingface_hub
       - run: python -m pip install paddlepaddle==3.0.0 paddleocr==3.0.3 'paddlex[ocr]==3.0.3' 'langchain==0.3.27' 'langchain-community==0.3.27'
@@ -84,7 +88,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: v014-routing-evidence-${{ matrix.index }}-v${{ matrix.visual }}-t${{ matrix.tokens }}
+          name: v0141-routing-evidence-${{ matrix.index }}-v${{ matrix.visual }}-t${{ matrix.tokens }}
           path: |
             blind-report.json
             blind-log.txt
