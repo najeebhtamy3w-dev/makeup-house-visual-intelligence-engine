@@ -1,0 +1,6 @@
+{
+  "name": "Makeup House",
+  "description": "Makeup House Visual Intelligence Engine (MH-VIE): Autonomous multi-engine cosmetic product recognition, visual search discovery, identity verification, quality ranking, and batch export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

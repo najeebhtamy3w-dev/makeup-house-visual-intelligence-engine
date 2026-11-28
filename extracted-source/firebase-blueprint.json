@@ -1,0 +1,198 @@
+{
+  "entities": {
+    "BatchJob": {
+      "title": "BatchJob",
+      "description": "A product visual intelligence processing batch created by a Makeup House user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["QUEUED", "RUNNING", "PAUSED", "COMPLETED", "CANCELLED", "FAILED"]
+        },
+        "strategy": {
+          "type": "string",
+          "enum": ["STANDARD", "OFFICIAL_FIRST", "DEEP_SOCIAL", "FAST_BARCODE"]
+        },
+        "targetImagesPerProduct": { "type": "integer" },
+        "totalProducts": { "type": "integer" },
+        "processedProducts": { "type": "integer" },
+        "foundProductsCount": { "type": "integer" },
+        "reviewProductsCount": { "type": "integer" },
+        "zeroResultCount": { "type": "integer" },
+        "discoveredImagesCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" }
+      },
+      "required": ["userId", "title", "status", "strategy", "targetImagesPerProduct", "totalProducts", "processedProducts", "foundProductsCount", "reviewProductsCount", "zeroResultCount", "discoveredImagesCount", "createdAt", "updatedAt"]
+    },
+    "ProductRecord": {
+      "title": "ProductRecord",
+      "description": "Identified cosmetic or beauty product record within a batch and visual memory.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "batchId": { "type": "string" },
+        "skuCode": { "type": "string" },
+        "barcode": { "type": "string" },
+        "brand": { "type": "string" },
+        "productNameEn": { "type": "string" },
+        "productNameAr": { "type": "string" },
+        "manufacturer": { "type": "string" },
+        "category": { "type": "string" },
+        "variantEdition": { "type": "string" },
+        "sizeWeight": { "type": "string" },
+        "shadeColor": { "type": "string" },
+        "packagingType": { "type": "string" },
+        "extractedTextSummary": { "type": "string" },
+        "identityConfidence": { "type": "number" },
+        "visualSignatureHash": { "type": "string" },
+        "localOriginalPaths": { "type": "array" },
+        "searchQueries": { "type": "array" },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "IDENTIFYING", "SEARCHING", "VERIFYING", "FOUND", "REVIEW_REQUIRED", "ZERO_RESULT", "FAILED"]
+        },
+        "zeroResultReason": {
+          "type": "string",
+          "enum": ["NONE", "NO_MATCHING_IMAGES", "LOW_QUALITY_ONLY", "RIGHTS_UNCLEAR", "LINK_ONLY_SOURCES", "UNCERTAIN_IDENTITY", "SOURCE_UNREACHABLE", "ENGINE_DOWN", "INCOMPLETE_PROCESSING"]
+        },
+        "escalationLevelReached": { "type": "string" },
+        "approvalStatus": {
+          "type": "string",
+          "enum": ["PENDING", "APPROVED", "REJECTED", "SENT_TO_STUDIO"]
+        },
+        "orchestratorNotes": { "type": "string" },
+        "discoveredCount": { "type": "integer" },
+        "matchedCount": { "type": "integer" },
+        "bestImageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" }
+      },
+      "required": ["userId", "batchId", "status", "zeroResultReason", "approvalStatus", "identityConfidence", "discoveredCount", "matchedCount", "createdAt", "updatedAt"]
+    },
+    "DiscoveredImage": {
+      "title": "DiscoveredImage",
+      "description": "Candidate commercial or official image discovered and verified for a product.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "productId": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "pageUrl": { "type": "string" },
+        "sourceName": { "type": "string" },
+        "publisherName": { "type": "string" },
+        "sourceType": {
+          "type": "string",
+          "enum": ["OFFICIAL_BRAND", "OPEN_BEAUTY_DB", "OPEN_MEDIA", "SOCIAL_INDEX", "SEARCH_ENGINE", "CREATIVE_STUDIO"]
+        },
+        "imageCategory": {
+          "type": "string",
+          "enum": ["A_OFFICIAL", "B_MARKETING", "C_LIFESTYLE", "D_WHITE_BG", "E_PACKAGING", "F_LOW_QUALITY", "G_MISMATCH", "H_REVIEW"]
+        },
+        "rightsStatus": {
+          "type": "string",
+          "enum": ["COMMERCIAL_PERMITTED", "PERMISSION_REQUIRED", "RIGHTS_UNKNOWN", "RESTRICTED", "LINK_ONLY"]
+        },
+        "licenseName": { "type": "string" },
+        "matchScore": { "type": "number" },
+        "brandMatchScore": { "type": "number" },
+        "skuMatchScore": { "type": "number" },
+        "aestheticScore": { "type": "number" },
+        "widthPx": { "type": "integer" },
+        "heightPx": { "type": "integer" },
+        "perceptualHash": { "type": "string" },
+        "verificationNotes": { "type": "string" },
+        "reviewDecision": {
+          "type": "string",
+          "enum": ["PENDING", "APPROVED", "REJECTED"]
+        },
+        "rejectionReason": { "type": "string" },
+        "localSavedPath": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" }
+      },
+      "required": ["userId", "productId", "imageUrl", "sourceName", "sourceType", "imageCategory", "rightsStatus", "matchScore", "brandMatchScore", "skuMatchScore", "aestheticScore", "widthPx", "heightPx", "reviewDecision", "createdAt", "updatedAt"]
+    },
+    "BrandProfile": {
+      "title": "BrandProfile",
+      "description": "Brand knowledge base entry storing official website, social handles, and successful search patterns.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "brandName": { "type": "string" },
+        "officialWebsite": { "type": "string" },
+        "instagramHandle": { "type": "string" },
+        "pinterestHandle": { "type": "string" },
+        "trustedDomains": { "type": "array" },
+        "successfulQueries": { "type": "array" },
+        "processedCount": { "type": "integer" },
+        "successRate": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" }
+      },
+      "required": ["userId", "brandName", "processedCount", "successRate", "createdAt", "updatedAt"]
+    },
+    "EngineConfig": {
+      "title": "EngineConfig",
+      "description": "Pluggable provider configuration, priority, endpoint, and benchmark metrics.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "engineKey": { "type": "string" },
+        "displayName": { "type": "string" },
+        "category": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "priorityOrder": { "type": "integer" },
+        "costTier": { "type": "string" },
+        "endpointUrl": { "type": "string" },
+        "lastHealthStatus": { "type": "string" },
+        "lastLatencyMs": { "type": "integer" },
+        "lastTestSummary": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" }
+      },
+      "required": ["userId", "engineKey", "displayName", "category", "enabled", "priorityOrder", "costTier", "lastHealthStatus", "lastLatencyMs", "createdAt", "updatedAt"]
+    },
+    "EngineAuditLog": {
+      "title": "EngineAuditLog",
+      "description": "Structured audit and error log entry for orchestrator decisions and failures.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "level": { "type": "string", "enum": ["INFO", "WARN", "ERROR"] },
+        "component": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ServerTimestamp" }
+      },
+      "required": ["userId", "level", "component", "message", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/batches/{batchId}": {
+      "schema": { "$ref": "#/entities/BatchJob" },
+      "description": "User-scoped product visual intelligence batches."
+    },
+    "/users/{userId}/products/{productId}": {
+      "schema": { "$ref": "#/entities/ProductRecord" },
+      "description": "User-scoped identified cosmetic products and visual memory."
+    },
+    "/users/{userId}/products/{productId}/candidates/{candidateId}": {
+      "schema": { "$ref": "#/entities/DiscoveredImage" },
+      "description": "Discovered candidate images and verification provenance for a product."
+    },
+    "/users/{userId}/brands/{brandId}": {
+      "schema": { "$ref": "#/entities/BrandProfile" },
+      "description": "User-scoped brand knowledge base."
+    },
+    "/users/{userId}/engines/{engineId}": {
+      "schema": { "$ref": "#/entities/EngineConfig" },
+      "description": "User-scoped pluggable engine configurations and benchmarks."
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": { "$ref": "#/entities/EngineAuditLog" },
+      "description": "User-scoped orchestrator error and decision logs."
+    }
+  }
+}

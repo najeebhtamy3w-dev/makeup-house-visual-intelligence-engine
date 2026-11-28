@@ -1,0 +1,34 @@
+[Unit]
+Description=MH-VIE single inference worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=@USER@
+WorkingDirectory=@PREFIX@/source
+EnvironmentFile=@PREFIX@/config/backend.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=HF_HOME=@PREFIX@/cache/huggingface
+Environment=XDG_CACHE_HOME=@PREFIX@/cache
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=OMP_NUM_THREADS=4
+Environment=MKL_NUM_THREADS=4
+ExecStart=@PREFIX@/venv/bin/python -m engine.service_main worker
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=@PREFIX@/data @PREFIX@/cache
+ReadOnlyPaths=@PREFIX@/source @PREFIX@/venv @PREFIX@/models
+UMask=0077
+TimeoutStopSec=120
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

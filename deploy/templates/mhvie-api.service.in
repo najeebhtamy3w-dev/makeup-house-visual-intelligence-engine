@@ -1,0 +1,27 @@
+[Unit]
+Description=MH-VIE private API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=@USER@
+WorkingDirectory=@PREFIX@/source
+EnvironmentFile=@PREFIX@/config/backend.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=@PREFIX@/venv/bin/python -m engine.service_main api
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=@PREFIX@/data @PREFIX@/cache
+ReadOnlyPaths=@PREFIX@/source @PREFIX@/venv @PREFIX@/models
+UMask=0077
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

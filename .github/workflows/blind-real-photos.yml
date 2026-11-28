@@ -1,0 +1,95 @@
+name: MH-VIE blind real photos
+on:
+  push:
+    branches: [development, 'feature/v015-search-integration']
+    paths: ['acceptance/blind10/**', '.github/workflows/blind-real-photos.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  blind:
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - {index: 1, visual: 256, tokens: 96}
+          - {index: 2, visual: 384, tokens: 128}
+          - {index: 3, visual: 384, tokens: 128}
+          - {index: 4, visual: 384, tokens: 128}
+          - {index: 5, visual: 384, tokens: 128}
+          - {index: 6, visual: 384, tokens: 128}
+          - {index: 7, visual: 384, tokens: 128}
+          - {index: 8, visual: 384, tokens: 128}
+          - {index: 9, visual: 384, tokens: 128}
+          - {index: 10, visual: 384, tokens: 128}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OMP_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unpack single uploaded ZIP if present
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          p=Path('acceptance/blind10')
+          archive=p/'MHVIE_blind_10.zip'
+          if archive.exists():
+              expected={'manifest.json'} | {f'images/{i:02}.jpg' for i in range(1,11)}
+              with zipfile.ZipFile(archive) as z:
+                  entries=z.infolist()
+                  assert len(entries)==11 and {x.filename for x in entries}==expected
+                  assert sum(x.file_size for x in entries)<=100000000
+                  for x in entries:
+                      assert x.file_size<=10000000
+                      target=p/x.filename
+                      target.parent.mkdir(parents=True,exist_ok=True)
+                      target.write_bytes(z.read(x))
+          PY
+      - name: Validate dataset before model download
+        run: |
+          python - <<'PY'
+          import json, hashlib
+          from pathlib import Path
+          p=Path('acceptance/blind10')
+          rows=json.loads((p/'manifest.json').read_text())
+          assert len(rows)==10
+          for row in rows:
+              assert not any(row.get(k) for k in ('name','fields','seeds'))
+              f=(p/row['image']).resolve()
+              assert f.is_relative_to(p.resolve())
+              assert hashlib.sha256(f.read_bytes()).hexdigest()==row['sha256']
+          PY
+      - name: Early lightweight fusion tests
+        run: |
+          python -m py_compile engine/identity_fusion.py engine/adaptive_identity.py engine/blind_identity_acceptance.py
+          python -m unittest discover -s tests -p test_adaptive_identity.py
+          python -m unittest discover -s tests -p test_identity_fusion.py
+      - run: python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install transformers==4.51.3 accelerate==1.6.0 Pillow huggingface_hub
+      - run: python -m pip install paddlepaddle==3.0.0 paddleocr==3.0.3 'paddlex[ocr]==3.0.3' 'langchain==0.3.27' 'langchain-community==0.3.27'
+      - name: Preflight OCR and Qwen imports
+        run: |
+          python -m pip check
+          python -c "from langchain.docstore.document import Document; from paddleocr import PaddleOCR; from transformers import Qwen2_5_VLForConditionalGeneration; print('IMPORT_PREFLIGHT_OK')"
+      - run: python -m unittest discover -s tests -p test_identity_fusion.py
+      - run: |
+          python - <<'PY'
+          from huggingface_hub import snapshot_download
+          snapshot_download('Qwen/Qwen2.5-VL-3B-Instruct',revision='1b989f2c63999d7344135894d3cfa8f494116743',local_dir='qwen-model',allow_patterns=['*.json','*.safetensors','*.txt','*.jinja'])
+          PY
+      - run: |
+          set -o pipefail
+          timeout 1200s python -u -m engine.blind_identity_acceptance --manifest acceptance/blind10/manifest.json --model qwen-model --output blind-report.json --index ${{ matrix.index }} --visual-tokens ${{ matrix.visual }} --new-tokens ${{ matrix.tokens }} --ocr 2>&1 | tee blind-log.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v0253-identity-evidence-${{ matrix.index }}-v${{ matrix.visual }}-t${{ matrix.tokens }}
+          path: |
+            blind-report.json
+            blind-log.txt

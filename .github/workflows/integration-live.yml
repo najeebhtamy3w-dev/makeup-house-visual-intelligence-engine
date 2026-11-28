@@ -1,0 +1,70 @@
+name: MH-VIE V0.26 recovered search integration
+on:
+  # Explicit live acceptance avoids repeated network/model work on unrelated edits.
+  workflow_dispatch:
+    inputs:
+      visual:
+        description: Run real OpenCLIP and LAION inference
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install Pillow
+      - run: python -m unittest discover -s tests -p test_integration_core.py -v
+      - name: Start temporary SearXNG
+        run: |
+          mkdir -p config
+          cat > config/settings.yml <<'YAML'
+          use_default_settings: true
+          server:
+            secret_key: "temporary-ci-only-not-for-production"
+            limiter: false
+          search:
+            formats: [html, json]
+          YAML
+          docker run -d --name searxng -p 127.0.0.1:8080:8080 -v "$PWD/config:/etc/searxng" searxng/searxng:latest
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/healthz; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Restore proven visual model configuration
+        if: inputs.visual == true
+        run: |
+          python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install open_clip_torch==2.32.0
+          git clone https://github.com/LAION-AI/aesthetic-predictor.git upstream-aesthetic
+          git -C upstream-aesthetic checkout 6d122adad522
+          python -c "import open_clip,pathlib; pathlib.Path('clip-path.txt').write_text(open_clip.download_pretrained(open_clip.get_pretrained_cfg('ViT-L-14','openai')))"
+      - name: Real discovery acceptance
+        run: |
+          args=()
+          if [ -f clip-path.txt ]; then
+            args+=(--require-instagram --clip-weights "$(cat clip-path.txt)" --aesthetic-weights upstream-aesthetic/sa_0_4_vit_l_14_linear.pth --aesthetic-sha256 "$(sha256sum upstream-aesthetic/sa_0_4_vit_l_14_linear.pth | cut -d' ' -f1)")
+          fi
+          timeout 900 python -u -m engine.integration_live --endpoint http://127.0.0.1:8080 --host instagram.com --host cdninstagram.com --host fbcdn.net --host cerave.com --host purador.com --host maybelline.com --host cdn.shopify.com "${args[@]}"
+      - name: Real candidate OCR on downloaded images
+        if: inputs.visual == true
+        run: |
+          python -m pip install 'paddlepaddle==3.0.0' 'paddleocr==3.0.3' 'paddlex[ocr]==3.0.3' 'langchain==0.3.27' 'langchain-community==0.3.27'
+          python -m engine.ocr_live_acceptance results-integration
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v016-live-evidence
+          path: results-integration/
+      - name: Search diagnostics
+        if: always()
+        run: docker logs --tail 80 searxng || true

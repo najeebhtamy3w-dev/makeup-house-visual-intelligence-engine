@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "status": "PROVISIONAL_PENDING_ACCEPTANCE",
+  "models": [
+    {
+      "id": "ocr",
+      "provider": "PaddleOCR",
+      "version": "3.0.3",
+      "runtime": "CPU",
+      "weights": "operator configured/cache",
+      "license_review": "pending",
+      "commercial_accepted": false
+    },
+    {
+      "id": "vision",
+      "repository": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "1b989f2c63999d7344135894d3cfa8f494116743",
+      "env": "MHVIE_VISION_MODEL",
+      "license_review": "PINNED_RESEARCH_LICENSE_VERIFIED",
+      "commercial_accepted": false,
+      "license_name": "Qwen Research License",
+      "commercial_use_status": "BLOCKED_REQUIRES_SEPARATE_PERMISSION",
+      "license_source": "https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct/blob/1b989f2c63999d7344135894d3cfa8f494116743/LICENSE"
+    },
+    {
+      "id": "clip",
+      "architecture": "ViT-L-14",
+      "env": "MHVIE_CLIP_WEIGHTS",
+      "license_review": "pending",
+      "commercial_accepted": false
+    },
+    {
+      "id": "aesthetic",
+      "env": "MHVIE_AESTHETIC_WEIGHTS",
+      "hash_env": "MHVIE_AESTHETIC_SHA256",
+      "license_review": "pending",
+      "commercial_accepted": false
+    },
+    {
+      "id": "segmentation",
+      "model": "birefnet-general",
+      "license_review": "pending",
+      "commercial_accepted": false
+    },
+    {
+      "id": "qwen-edit",
+      "repository": "Qwen/Qwen-Image-Edit-2511",
+      "runtime": "CUDA",
+      "acceptance": "pending",
+      "license_review": "UPSTREAM_CARD_DECLARES_APACHE_2_0_INSTALLED_SNAPSHOT_PENDING",
+      "commercial_accepted": false,
+      "license_name": "Apache-2.0",
+      "license_source": "https://huggingface.co/Qwen/Qwen-Image-Edit-2511"
+    },
+    {
+      "id": "flux-edit",
+      "repository": "black-forest-labs/FLUX.2-klein-4B",
+      "runtime": "CUDA",
+      "acceptance": "pending",
+      "license_review": "UPSTREAM_CARD_DECLARES_APACHE_2_0_INSTALLED_SNAPSHOT_PENDING",
+      "commercial_accepted": false,
+      "license_name": "Apache-2.0",
+      "license_source": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B"
+    }
+  ],
+  "reviewed_at": "2026-11-28"
+}

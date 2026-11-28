@@ -1,0 +1,61 @@
+{
+  "version": "V4-integration-candidate",
+  "status": "DEBUG_DELIVERY_PENDING_PROFESSIONAL_ACCEPTANCE",
+  "branch": "feature/v015-search-integration",
+  "entrypoint": "python -m engine.service_main",
+  "job_types": [
+    "identify",
+    "discover",
+    "barcode",
+    "smart_discover",
+    "photo_discover",
+    "prepare_mask",
+    "correct_mask",
+    "locked_scene",
+    "studio",
+    "direct_edit"
+  ],
+  "models": "MODEL_REGISTRY.json",
+  "dependencies": [
+    "requirements-service.txt",
+    "requirements-identity.txt"
+  ],
+  "guide": "WORK_INTEGRATION_GUIDE.md",
+  "pending": [
+    "Independent human-reviewed classification/SKU acceptance",
+    "Real GPU FLUX/Qwen comparison and product-identity quality",
+    "Real reviewed segmentation masks",
+    "Authorized backend deployment and external TLS integration",
+    "Samsung field acceptance and actual throughput measurement",
+    "Commercial permission or benchmarked replacement for research-only Qwen2.5-VL-3B"
+  ],
+  "publication_allowed": false,
+  "legacy_studio": "experimental; use locked_scene for product-preserving marketing",
+  "discovery_priority": [
+    "instagram_public_indexed_posts",
+    "general_web",
+    "optional_user_requested_direct_edit"
+  ],
+  "segmentation_required_for_direct_edit": false,
+  "recovery": {
+    "original_workflows_restored": 5,
+    "live_acceptance": "REAL_INFERENCE_VERIFIED_REVIEW_REQUIRED",
+    "historical_artifact": "image-review",
+    "historical_artifact_recovered": true,
+    "historical_run": 46066676176,
+    "historical_images_hash_verified": 57,
+    "v4_live_run": 46071726883,
+    "v4_live_images": 54,
+    "v4_live_instagram": 15,
+    "quality_accepted": false
+  },
+  "engine_baseline": "V0.27/d5e7360",
+  "android": {
+    "version_name": "0.26.0-dev.1",
+    "version_code": 27,
+    "application_id": "com.aistudio.makeuphouse.mhvie",
+    "device_verified": false
+  },
+  "quality_accepted": false,
+  "release_ready": false
+}

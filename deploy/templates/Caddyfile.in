@@ -1,0 +1,9 @@
+# Install only after DNS points to this operator-owned Linux host.
+# Caddy obtains TLS certificates; no backend token is stored in this file.
+@DOMAIN@ {
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+    }
+    reverse_proxy 127.0.0.1:8765
+}

@@ -1,0 +1,36 @@
+name: MH-VIE Qwen inference
+on:
+  push:
+    branches: [development]
+    paths: ['engine/qwen_benchmark.py','engine/multimodal.py','.github/workflows/qwen-benchmark.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qwen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OMP_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install transformers==4.51.3 accelerate==1.6.0 Pillow huggingface_hub
+      - run: |
+          free -h
+          df -h .
+          python - <<'PY'
+          from huggingface_hub import snapshot_download
+          snapshot_download('Qwen/Qwen2.5-VL-3B-Instruct',revision='1b989f2c63999d7344135894d3cfa8f494116743',local_dir='qwen-model',allow_patterns=['*.json','*.safetensors','*.txt','*.jinja'])
+          PY
+      - run: |
+          set -o pipefail
+          python -m engine.qwen_benchmark qwen-model 2>&1 | tee qwen-report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qwen-report
+          path: qwen-report.txt

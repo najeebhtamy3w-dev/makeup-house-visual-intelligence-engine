@@ -1,0 +1,10 @@
+-r requirements-service.txt
+paddlepaddle==3.0.0
+paddleocr==3.0.3
+paddlex[ocr]==3.0.3
+langchain==0.3.27
+langchain-community==0.3.27
+torch==2.6.0
+transformers==4.51.3
+accelerate==1.6.0
+open_clip_torch==2.32.0
