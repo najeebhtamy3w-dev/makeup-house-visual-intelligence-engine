@@ -16,6 +16,21 @@ def worker_lease(root):
         raise RuntimeError('WORKER_ALREADY_ACTIVE') from None
     return lease
 
+def api_binding(environ=None):
+    """Default to loopback; managed hosts must opt in to a public listener."""
+    import ipaddress
+    env = os.environ if environ is None else environ
+    host = env.get('MHVIE_API_HOST', '127.0.0.1')
+    try:
+        ipaddress.ip_address(host)
+        port = int(env.get('MHVIE_API_PORT', '8765'))
+        if not 1 <= port <= 65535:
+            raise ValueError()
+    except ValueError:
+        raise ValueError('INVALID_API_BINDING') from None
+    return host, port
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument('mode',choices=['api','worker','recover'])
@@ -26,7 +41,8 @@ def main():
     if a.mode=='api':
         import uvicorn
         from .service_api import create_app
-        uvicorn.run(create_app(runtime,root,os.environ['MHVIE_TOKEN']),host='127.0.0.1',port=8765)
+        host,port=api_binding()
+        uvicorn.run(create_app(runtime,root,os.environ['MHVIE_TOKEN']),host=host,port=port)
     elif a.mode=='recover':
         with worker_lease(root):
             print(runtime.recover_interrupted())
