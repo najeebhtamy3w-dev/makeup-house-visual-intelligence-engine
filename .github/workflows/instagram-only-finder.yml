@@ -1,0 +1,45 @@
+name: Instagram Only Finder
+on:
+  push:
+    branches: [feature/instagram-only-finder]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  finder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install Pillow
+      - run: python -m unittest discover -s tests -p test_instagram_finder.py -v
+      - name: Start search
+        run: |
+          mkdir -p config
+          printf 'use_default_settings: true\nserver:\n  secret_key: "ci-only-not-production"\n  limiter: false\nsearch:\n  formats: [html, json]\n' > config/settings.yml
+          docker run -d --name searxng -p 127.0.0.1:8080:8080 -v "$PWD/config:/etc/searxng" searxng/searxng:latest
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/healthz && exit 0; sleep 2; done
+          exit 1
+      - name: Actual Instagram discovery
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from engine.instagram_finder import find
+          from engine.search_discovery import SearxDiscovery
+          root=Path("instagram-results"); root.mkdir()
+          search=SearxDiscovery("http://127.0.0.1:8080")
+          results=[]
+          for i,q in enumerate(["CeraVe Hydrating Facial Cleanser","Pura D'or Vitamin C Serum","Maybelline Sky High Mascara","Mielle Rosemary Mint Strengthening Leave-In Conditioner 355 ml"]):
+              results.append(find(q,search,root/str(i)))
+              (root/"report.json").write_text(json.dumps(results,indent=2))
+          assert all(x["candidates"] for x in results), "Instagram coverage incomplete"
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: instagram-only-evidence
+          path: instagram-results/
